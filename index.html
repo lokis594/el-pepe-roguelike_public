@@ -16,10 +16,10 @@
             background-color: #060709;
             color: #e2e8f0;
             font-family: 'Courier New', Courier, monospace;
+            margin: 0;
+            padding: 0;
             overflow: hidden;
-            display: flex;
-            justify-content: center;
-            align-items: center;
+            display: block;
             height: 100vh;
             width: 100vw;
             touch-action: none;
@@ -29,23 +29,21 @@
         }
         #game-container {
             position: relative;
-            box-shadow: 0 0 60px rgba(0, 255, 200, 0.12), 0 0 15px rgba(0, 0, 0, 0.9);
-            border: 2px solid #1e293b;
-            border-radius: 4px;
             overflow: hidden;
-            width: min(100vw, calc(100vh * (1100 / 720)));
-            height: min(100vh, calc(100vw * (720 / 1100)));
-            max-width: 1100px;
-            max-height: 720px;
-            aspect-ratio: 1100 / 720;
+            width: 100vw;
+            height: 100vh;
+            margin: 0;
+            padding: 0;
         }
         canvas {
             display: block;
             background-color: #0b0e14;
             cursor: crosshair;
-            width: 100%;
-            height: 100%;
-            object-fit: contain;
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            width: 100vw;
+            height: 100vh;
             touch-action: none;
             user-select: none;
             -webkit-user-select: none;
@@ -152,6 +150,7 @@
             left: 50%;
             transform: translateX(-50%);
             width: 580px;
+            max-width: calc(100vw - 230px);
             background: rgba(15, 10, 18, 0.88);
             border: 1px solid #7f1d1d;
             border-top: 3px solid #ef4444;
@@ -345,7 +344,7 @@
 <div id="orientation-hint">🔄 Gira tu dispositivo a Horizontal (Landscape) para una mejor experiencia</div>
 
 <div id="game-container">
-    <canvas id="gameCanvas" width="1100" height="720"></canvas>
+    <canvas id="gameCanvas"></canvas>
 
     <!-- HUD Layer -->
     <div id="hud" class="ui-layer">
@@ -3190,27 +3189,29 @@ class Game {
     constructor() {
         this.canvas = document.getElementById('gameCanvas');
         this.ctx = this.canvas.getContext('2d');
-        this.width = this.canvas.width;
-        this.height = this.canvas.height;
+
+        // Dimensiones dinámicas del canvas adaptadas a ventana completa
+        this.width = window.innerWidth;
+        this.height = window.innerHeight;
+        this.canvas.width = this.width;
+        this.canvas.height = this.height;
 
         // Estados: 'MENU' | 'PLAYING' | 'BOSS_INTRO' | 'VICTORY' | 'GAMEOVER'
         this.state = 'MENU';
         this.lastTime = performance.now();
         this.globalTime = 0;
 
-        // Dimensiones de la mazmorra cerrada
-        this.arena = {
-            x: 60,
-            y: 60,
-            w: this.width - 120,
-            h: this.height - 120
-        };
-
         // Nivel actual, mundo y cámara dinámica
         this.level = 1;
         this.runId = 0;
-        this.worldW = this.width;
-        this.worldH = this.height;
+        this.worldW = 1100;
+        this.worldH = 720;
+        this.arena = {
+            x: 60,
+            y: 60,
+            w: this.worldW - 120,
+            h: this.worldH - 120
+        };
         this.camera = { x: 0, y: 0 };
         this.spawners = [];
 
@@ -3240,8 +3241,8 @@ class Game {
             },
             buttons: {
                 attack: {
-                    x: 970,
-                    y: 570,
+                    x: this.width - 100,
+                    y: this.height - 120,
                     r: 45,
                     down: false,
                     touchId: null,
@@ -3249,28 +3250,43 @@ class Game {
                     aimAngle: 0
                 },
                 dash: {
-                    x: 855,
-                    y: 605,
+                    x: this.width - 210,
+                    y: this.height - 90,
                     r: 32,
                     down: false,
                     touchId: null
                 },
                 weapon: {
-                    x: 970,
-                    y: 450,
+                    x: this.width - 100,
+                    y: this.height - 230,
                     r: 30,
                     down: false,
                     touchId: null
                 },
                 pause: {
-                    x: 1030,
-                    y: 20,
-                    w: 45,
-                    h: 45
+                    x: this.width - 55,
+                    y: 18,
+                    w: 42,
+                    h: 42
+                },
+                fullscreen: {
+                    x: this.width - 105,
+                    y: 18,
+                    w: 42,
+                    h: 42
                 }
             },
             isAttackTouchHeld: false
         };
+        this.updateControlPositions();
+
+        // Eventos de Redimensionamiento Dinámico y Pantalla Completa
+        window.addEventListener('resize', () => this.resizeCanvas());
+        window.addEventListener('orientationchange', () => {
+            setTimeout(() => this.resizeCanvas(), 100);
+        });
+        document.addEventListener('fullscreenchange', () => this.resizeCanvas());
+        document.addEventListener('webkitfullscreenchange', () => this.resizeCanvas());
 
         // Entidades y contenedores
         this.player = null;
@@ -3298,6 +3314,87 @@ class Game {
         this.initArenaEnvironment();
 
         requestAnimationFrame((t) => this.loop(t));
+    }
+
+    resizeCanvas() {
+        this.width = window.innerWidth;
+        this.height = window.innerHeight;
+        this.canvas.width = this.width;
+        this.canvas.height = this.height;
+
+        this.updateControlPositions();
+
+        if (this.player) {
+            this.updateCamera(0, true);
+        }
+    }
+
+    updateControlPositions() {
+        const w = this.width;
+        const h = this.height;
+
+        // Joystick anclado a la esquina inferior izquierda
+        const js = this.touchControls.joystick;
+        js.baseX = Math.max(90, Math.min(160, w * 0.16));
+        js.baseY = Math.max(120, h - 130);
+        if (!js.active) {
+            js.stickX = js.baseX;
+            js.stickY = js.baseY;
+        }
+
+        // Botones de acción anclados a la esquina inferior derecha
+        const btn = this.touchControls.buttons;
+        btn.attack.x = w - 100;
+        btn.attack.y = h - 120;
+
+        btn.dash.x = w - 210;
+        btn.dash.y = h - 90;
+
+        btn.weapon.x = w - 100;
+        btn.weapon.y = h - 230;
+
+        // Botones del HUD en la esquina superior derecha
+        btn.pause.x = w - 55;
+        btn.pause.y = 18;
+        btn.pause.w = 42;
+        btn.pause.h = 42;
+
+        btn.fullscreen.x = w - 105;
+        btn.fullscreen.y = 18;
+        btn.fullscreen.w = 42;
+        btn.fullscreen.h = 42;
+    }
+
+    toggleFullscreen() {
+        const doc = document;
+        const docEl = document.documentElement;
+
+        const isFullscreen = !!(doc.fullscreenElement ||
+                               doc.webkitFullscreenElement ||
+                               doc.mozFullScreenElement ||
+                               doc.msFullscreenElement);
+
+        if (!isFullscreen) {
+            if (docEl.requestFullscreen) {
+                docEl.requestFullscreen().catch(() => {});
+            } else if (docEl.webkitRequestFullscreen) {
+                docEl.webkitRequestFullscreen();
+            } else if (docEl.mozRequestFullScreen) {
+                docEl.mozRequestFullScreen();
+            } else if (docEl.msRequestFullscreen) {
+                docEl.msRequestFullscreen();
+            }
+        } else {
+            if (doc.exitFullscreen) {
+                doc.exitFullscreen().catch(() => {});
+            } else if (doc.webkitExitFullscreen) {
+                doc.webkitExitFullscreen();
+            } else if (doc.mozCancelFullScreen) {
+                doc.mozCancelFullScreen();
+            } else if (doc.msExitFullscreen) {
+                doc.msExitFullscreen();
+            }
+        }
     }
 
     getTouchCanvasPos(touch) {
@@ -3404,6 +3501,13 @@ class Game {
                     }
                 }
 
+                // Clic en botón de pantalla completa
+                const fsb = this.touchControls.buttons.fullscreen;
+                if (clickX >= fsb.x && clickX <= fsb.x + fsb.w && clickY >= fsb.y && clickY <= fsb.y + fsb.h) {
+                    this.toggleFullscreen();
+                    return;
+                }
+
                 if (this.isPaused) {
                     this.isPaused = false;
                     return;
@@ -3438,6 +3542,13 @@ class Game {
                         this.isPaused = !this.isPaused;
                         continue;
                     }
+                }
+
+                // Botón de Pantalla Completa en el HUD
+                const fsb = this.touchControls.buttons.fullscreen;
+                if (pos.x >= fsb.x - 10 && pos.x <= fsb.x + fsb.w + 10 && pos.y >= fsb.y - 10 && pos.y <= fsb.y + fsb.h + 10) {
+                    this.toggleFullscreen();
+                    continue;
                 }
 
                 // Tocar pantalla durante pausa reanuda la partida
@@ -3665,9 +3776,9 @@ class Game {
     initArenaEnvironment() {
         const isL2 = this.level === 2;
 
-        // Dimensiones del mundo: Nivel 1 = 1100x720 (pantalla), Nivel 2 = 2200x1500 (cámara dinámica)
-        this.worldW = isL2 ? 2200 : this.width;
-        this.worldH = isL2 ? 1500 : this.height;
+        // Dimensiones del mundo: Nivel 1 = 1100x720, Nivel 2 = 2200x1500 (cámara dinámica)
+        this.worldW = isL2 ? 2200 : 1100;
+        this.worldH = isL2 ? 1500 : 720;
         this.arena = {
             x: 60,
             y: 60,
@@ -4391,12 +4502,13 @@ class Game {
     drawArenaDungeon(ctx) {
         const { x, y, w, h } = this.arena;
 
-        // 1. Dibujar el suelo de la mazmorra y muros de Deepslate cacheados
+        // 1. Dibujar el fondo abisal y el suelo de la mazmorra
+        ctx.fillStyle = '#06070a';
+        ctx.fillRect(this.camera.x, this.camera.y, this.width, this.height);
+
         if (this.dungeonFloorCanvas) {
-            ctx.drawImage(this.dungeonFloorCanvas, this.camera.x, this.camera.y, this.width, this.height, this.camera.x, this.camera.y, this.width, this.height);
+            ctx.drawImage(this.dungeonFloorCanvas, 0, 0);
         } else {
-            ctx.fillStyle = '#06070a';
-            ctx.fillRect(0, 0, this.width, this.height);
             ctx.fillStyle = '#4c4f56';
             ctx.fillRect(x, y, w, h);
         }
@@ -4785,8 +4897,13 @@ class Game {
             ctx.restore();
         }
 
-        // 9.5. Controles Táctiles Virtuales en Móviles (Joystick + Botones)
-        if (this.isTouchDevice && (this.state === 'PLAYING' || this.state === 'BOSS_INTRO' || this.isPaused)) {
+        // 9.5. Botones del HUD (Pausa + Pantalla Completa)
+        if (this.state === 'PLAYING' || this.state === 'BOSS_INTRO' || this.isPaused) {
+            this.drawHUDButtons(ctx);
+        }
+
+        // 9.6. Controles Táctiles Virtuales en Móviles (Joystick + Botones de Acción)
+        if (this.isTouchDevice && (this.state === 'PLAYING' || this.state === 'BOSS_INTRO') && !this.isPaused) {
             this.drawTouchControls(ctx);
         }
 
@@ -4796,7 +4913,7 @@ class Game {
             ctx.fillStyle = 'rgba(6, 8, 14, 0.78)';
             ctx.fillRect(0, 0, this.width, this.height);
 
-            const pw = 500;
+            const pw = Math.min(500, this.width - 40);
             const ph = 270;
             const px = (this.width - pw) / 2;
             const py = (this.height - ph) / 2;
@@ -4852,10 +4969,10 @@ class Game {
         ctx.restore();
     }
 
-    drawTouchControls(ctx) {
+    drawHUDButtons(ctx) {
         ctx.save();
 
-        // Botón de Pausa en el HUD (Esquina Superior Derecha - 45x45px)
+        // 1. Botón de Pausa en el HUD (Esquina Superior Derecha - 42x42px)
         const pb = this.touchControls.buttons.pause;
         ctx.save();
         ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
@@ -4871,14 +4988,53 @@ class Game {
 
         ctx.fillStyle = this.isPaused ? '#ef4444' : '#00f5d4';
         ctx.shadowBlur = 0;
-        ctx.fillRect(pb.x + 13, pb.y + 11, 5, 23);
-        ctx.fillRect(pb.x + 27, pb.y + 11, 5, 23);
+        ctx.fillRect(pb.x + 12, pb.y + 10, 5, 22);
+        ctx.fillRect(pb.x + 25, pb.y + 10, 5, 22);
         ctx.restore();
 
-        if (this.isPaused) {
-            ctx.restore();
-            return;
+        // 2. Botón de Pantalla Completa (HUD - 42x42px junto a Pausa)
+        const fsb = this.touchControls.buttons.fullscreen;
+        const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
+        ctx.save();
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+        ctx.strokeStyle = isFs ? '#fbbf24' : '#00f5d4';
+        ctx.lineWidth = 2.5;
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = isFs ? '#fbbf24' : '#00f5d4';
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(fsb.x, fsb.y, fsb.w, fsb.h, 6);
+        else ctx.rect(fsb.x, fsb.y, fsb.w, fsb.h);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.shadowBlur = 0;
+        ctx.strokeStyle = isFs ? '#fbbf24' : '#00f5d4';
+        ctx.lineWidth = 2.5;
+        const fcx = fsb.x + fsb.w * 0.5;
+        const fcy = fsb.y + fsb.h * 0.5;
+        const s = 9;
+        ctx.beginPath();
+        if (!isFs) {
+            // Cuatro esquinas expandiéndose: [  ]
+            ctx.moveTo(fcx - s, fcy - s + 5); ctx.lineTo(fcx - s, fcy - s); ctx.lineTo(fcx - s + 5, fcy - s);
+            ctx.moveTo(fcx + s - 5, fcy - s); ctx.lineTo(fcx + s, fcy - s); ctx.lineTo(fcx + s, fcy - s + 5);
+            ctx.moveTo(fcx - s, fcy + s - 5); ctx.lineTo(fcx - s, fcy + s); ctx.lineTo(fcx - s + 5, fcy + s);
+            ctx.moveTo(fcx + s - 5, fcy + s); ctx.lineTo(fcx + s, fcy + s); ctx.lineTo(fcx + s, fcy + s - 5);
+        } else {
+            // Cuatro esquinas contrayéndose hacia adentro
+            ctx.moveTo(fcx - s + 4, fcy - s); ctx.lineTo(fcx - s + 4, fcy - s + 4); ctx.lineTo(fcx - s, fcy - s + 4);
+            ctx.moveTo(fcx + s - 4, fcy - s); ctx.lineTo(fcx + s - 4, fcy - s + 4); ctx.lineTo(fcx - s, fcy - s + 4);
+            ctx.moveTo(fcx - s + 4, fcy + s); ctx.lineTo(fcx - s + 4, fcy + s - 4); ctx.lineTo(fcx - s, fcy + s - 4);
+            ctx.moveTo(fcx + s - 4, fcy + s); ctx.lineTo(fcx + s, fcy + s - 4); ctx.lineTo(fcx + s, fcy + s - 4);
         }
+        ctx.stroke();
+        ctx.restore();
+
+        ctx.restore();
+    }
+
+    drawTouchControls(ctx) {
+        ctx.save();
 
         // 1. Joystick Virtual de Movimiento (Mitad Izquierda)
         const js = this.touchControls.joystick;
@@ -5054,21 +5210,29 @@ class Game {
         ctx.restore();
     }
 
-    // Cámara suave centrada en el jugador (solo se mueve si el mundo es mayor que la pantalla)
+    // Cámara suave centrada en el jugador (se mueve si el mundo es mayor que la pantalla, o centra si es menor)
     updateCamera(dt, snap = false) {
         const p = this.player;
-        const maxX = Math.max(0, this.worldW - this.width);
-        const maxY = Math.max(0, this.worldH - this.height);
-        if (!p || (maxX === 0 && maxY === 0)) {
-            this.camera.x = 0;
-            this.camera.y = 0;
-            return;
+        let targetX = 0;
+        let targetY = 0;
+
+        if (this.width >= this.worldW) {
+            targetX = (this.worldW - this.width) * 0.5;
+        } else if (p) {
+            const maxX = this.worldW - this.width;
+            targetX = MathUtils.clamp(p.x - this.width * 0.5, 0, maxX);
         }
-        const tx = MathUtils.clamp(p.x - this.width * 0.5, 0, maxX);
-        const ty = MathUtils.clamp(p.y - this.height * 0.5, 0, maxY);
+
+        if (this.height >= this.worldH) {
+            targetY = (this.worldH - this.height) * 0.5;
+        } else if (p) {
+            const maxY = this.worldH - this.height;
+            targetY = MathUtils.clamp(p.y - this.height * 0.5, 0, maxY);
+        }
+
         const k = snap ? 1 : 1 - Math.exp(-7 * dt);
-        this.camera.x += (tx - this.camera.x) * k;
-        this.camera.y += (ty - this.camera.y) * k;
+        this.camera.x += (targetX - this.camera.x) * k;
+        this.camera.y += (targetY - this.camera.y) * k;
     }
 
     syncMouseWorld() {
