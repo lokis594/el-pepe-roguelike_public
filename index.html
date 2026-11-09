@@ -65,36 +65,40 @@
             gap: 10px;
         }
         .hud-top-left {
-            background: rgba(10, 14, 22, 0.88);
-            border: 1px solid #334155;
-            border-left: 4px solid #00f5d4;
-            padding: 14px 18px;
-            width: 320px;
-            border-radius: 4px;
-            backdrop-filter: blur(4px);
+            width: 270px;
+            padding: 0;
+            background: transparent;
+            border: none;
+            border-left: none;
+            border-radius: 0;
+            backdrop-filter: none;
+            box-shadow: none;
         }
         .stat-label {
-            font-size: 12px;
+            font-size: 11px;
             letter-spacing: 1.5px;
             color: #94a3b8;
-            margin-bottom: 5px;
+            margin-bottom: 3px;
             display: flex;
             justify-content: space-between;
             font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.95);
         }
         .bar-bg {
             width: 100%;
-            height: 14px;
-            background: #1e293b;
-            border: 1px solid #475569;
-            margin-bottom: 10px;
+            height: 11px;
+            background: rgba(15, 23, 42, 0.65);
+            border: 1px solid rgba(71, 85, 105, 0.9);
+            box-shadow: 0 1px 4px rgba(0, 0, 0, 0.85);
+            margin-bottom: 7px;
             position: relative;
             overflow: hidden;
+            border-radius: 2px;
         }
         .hp-bar-bg {
-            height: 20px;
-            border: 1px solid #059669;
-            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.8);
+            height: 16px;
+            border: 1px solid rgba(16, 185, 129, 0.85);
+            box-shadow: inset 0 0 6px rgba(0, 0, 0, 0.8), 0 1px 4px rgba(0, 0, 0, 0.85);
         }
         #hp-bar {
             height: 100%;
@@ -106,7 +110,7 @@
         #hp-text {
             color: #4ade80;
             font-weight: 900;
-            text-shadow: 0 0 8px rgba(74, 222, 128, 0.6);
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.95), 0 0 8px rgba(74, 222, 128, 0.6);
         }
         #dash-bar {
             height: 100%;
@@ -115,32 +119,34 @@
             box-shadow: 0 0 8px #00f5d4;
         }
         .wave-badge {
-            font-size: 14px;
+            font-size: 12px;
             color: #00f5d4;
             font-weight: bold;
-            text-shadow: 0 0 8px rgba(0, 245, 212, 0.5);
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.95), 0 0 8px rgba(0, 245, 212, 0.5);
             margin-top: 2px;
         }
         .weapon-badge {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-top: 8px;
-            padding-top: 8px;
-            border-top: 1px solid #1e293b;
-            font-size: 12px;
+            margin-top: 5px;
+            padding-top: 5px;
+            border-top: 1px solid rgba(71, 85, 105, 0.45);
+            font-size: 11px;
             font-weight: bold;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.95);
         }
         .weapon-name-tag {
             color: #00f5d4;
             letter-spacing: 1px;
-            text-shadow: 0 0 6px rgba(0, 245, 212, 0.5);
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.95), 0 0 6px rgba(0, 245, 212, 0.5);
         }
         .buff-status {
-            font-size: 11px;
+            font-size: 10px;
             color: #fbbf24;
-            margin-top: 4px;
-            min-height: 14px;
+            margin-top: 3px;
+            min-height: 12px;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.95);
         }
 
         /* Boss HUD */
@@ -328,13 +334,49 @@
             50% { opacity: 0.70; transform: translateX(-50%) scale(0.97); }
         }
 
+        /* Menú Principal y Splash Text estilo Minecraft */
+        #menu-screen {
+            overflow-y: auto;
+            max-height: 100dvh;
+            padding: 12px;
+            box-sizing: border-box;
+        }
+        .title-container {
+            position: relative;
+            display: inline-block;
+        }
+        .minecraft-splash {
+            position: absolute;
+            right: -24px;
+            bottom: -6px;
+            color: #ffff00;
+            font-family: "Courier New", Courier, monospace;
+            font-weight: 900;
+            font-size: 15px;
+            text-shadow: 2px 2px 0px #3f3f00;
+            white-space: nowrap;
+            pointer-events: none;
+            user-select: none;
+            z-index: 10;
+            transform-origin: center center;
+            animation: minecraftPulse 0.6s ease-in-out infinite alternate;
+        }
+        @keyframes minecraftPulse {
+            0% {
+                transform: rotate(-16deg) scale(0.92);
+            }
+            100% {
+                transform: rotate(-16deg) scale(1.12);
+            }
+        }
+
         /* Ajustes Responsivos para Pantallas Móviles */
         @media (max-width: 1024px), (max-height: 700px) {
             .hud-top-left {
                 transform: scale(0.65);
                 transform-origin: top left;
-                width: 320px;
-                padding: 12px 14px;
+                width: 270px;
+                padding: 0;
             }
             #hud {
                 padding: 10px 12px;
@@ -347,11 +389,60 @@
             }
         }
         @media (max-height: 640px), (max-width: 640px) {
-            .title-main { font-size: 30px !important; margin-bottom: 4px !important; }
-            .subtitle { font-size: 12px !important; margin-bottom: 12px !important; }
-            .controls-box { padding: 12px 18px !important; margin-bottom: 16px !important; max-height: 48vh; overflow-y: auto; }
-            .control-row { font-size: 11px !important; margin-bottom: 6px !important; }
-            .btn-action { padding: 10px 24px !important; font-size: 15px !important; }
+            .title-main { font-size: 28px !important; margin-bottom: 4px !important; }
+            .subtitle { font-size: 11px !important; margin-bottom: 10px !important; }
+            .controls-box { padding: 10px 16px !important; margin-bottom: 12px !important; max-height: 52vh; overflow-y: auto; }
+            .control-row { font-size: 10px !important; margin-bottom: 5px !important; }
+            .btn-action { padding: 9px 22px !important; font-size: 14px !important; }
+            .minecraft-splash { font-size: 12px !important; right: -16px !important; bottom: -4px !important; }
+        }
+        /* Dispositivos Móviles en Horizontal (Landscape) */
+        @media (max-height: 520px) {
+            #menu-screen {
+                justify-content: flex-start !important;
+                padding: 6px 12px !important;
+            }
+            .title-main {
+                font-size: 20px !important;
+                margin-bottom: 2px !important;
+                letter-spacing: 2px !important;
+            }
+            .subtitle {
+                font-size: 9.5px !important;
+                letter-spacing: 1px !important;
+                margin-bottom: 5px !important;
+            }
+            .controls-box {
+                padding: 5px 12px !important;
+                margin-bottom: 6px !important;
+                max-width: 440px !important;
+                width: 96% !important;
+                max-height: none !important;
+            }
+            .controls-box h3 {
+                font-size: 10px !important;
+                margin-bottom: 3px !important;
+                padding-bottom: 2px !important;
+            }
+            .control-row {
+                font-size: 8.5px !important;
+                margin-bottom: 2px !important;
+                gap: 8px !important;
+            }
+            .key-tag {
+                padding: 1px 4px !important;
+                font-size: 8px !important;
+            }
+            .btn-action {
+                padding: 5px 18px !important;
+                font-size: 12px !important;
+                letter-spacing: 1px !important;
+            }
+            .minecraft-splash {
+                font-size: 9.5px !important;
+                right: -12px !important;
+                bottom: -3px !important;
+            }
         }
     </style>
 </head>
@@ -377,11 +468,11 @@
                 <span>DASH IMPULSO</span>
                 <span id="dash-text">LISTO</span>
             </div>
-            <div class="bar-bg" style="height: 8px; margin-bottom: 8px;">
+            <div class="bar-bg" style="height: 7px; margin-bottom: 6px;">
                 <div id="dash-bar"></div>
             </div>
 
-            <div id="level-badge" class="wave-badge" style="display:none; color:#fbbf24; border-color:#fbbf24; text-shadow:0 0 8px rgba(251,191,36,0.7);">NIVEL 2 - MODO POTENCIADO</div>
+            <div id="level-badge" class="wave-badge" style="display:none; color:#fbbf24; border-color:#fbbf24; text-shadow:2px 2px 4px rgba(0,0,0,0.95), 0 0 8px rgba(251,191,36,0.7);">NIVEL 2 - MODO POTENCIADO</div>
             <div id="wave-counter" class="wave-badge">OLEADA: 1 / 3</div>
             
             <div class="weapon-badge">
@@ -402,7 +493,10 @@
 
     <!-- Menu Screen -->
     <div id="menu-screen" class="overlay-screen">
-        <div class="title-main">CRÓNICAS DEL ABISMO</div>
+        <div class="title-container">
+            <div class="title-main">CRÓNICAS DEL ABISMO</div>
+            <div class="minecraft-splash">hecho por lokis594</div>
+        </div>
         <div class="subtitle">LA GUARIDA DE EL PEPE MAESTRO</div>
         <div class="controls-box">
             <h3>MANUAL DE COMBATE ROGUELIKE</h3>
@@ -431,7 +525,7 @@
                 <span class="key-tag" style="color:#f87171;">PERMADEATH</span>
             </div>
         </div>
-        <button id="btn-start" class="btn-action">ENTRAR A LA MAZMORRA</button>
+        <button id="btn-start" class="btn-action">ENTRAR A LA GUARIDA</button>
     </div>
 
     <!-- Game Over Screen -->
@@ -2566,14 +2660,31 @@ class Boss extends Entity {
         for (let i = this.shockwaves.length - 1; i >= 0; i--) {
             const sw = this.shockwaves[i];
             sw.radius += sw.speed * dt;
-            // Comprobar daño en el borde del anillo sísmico (balanceado -10%)
-            if (!sw.hitPlayer && !player.dead) {
+
+            // 1, 2, 3: Colisión de Anillo Hueco (solo en el borde activo entre sw.radius - 18 y sw.radius + 18)
+            const alreadyHit = sw.waveHitPlayer || sw.hitPlayer;
+            if (!alreadyHit && !player.dead) {
                 const d = MathUtils.dist(sw.x, sw.y, player.x, player.y);
-                if (Math.abs(d - sw.radius) < player.radius + 12) {
-                    const hit = player.takeDamage(22, sw.x, sw.y, 360, game);
-                    if (hit) sw.hitPlayer = true;
+                if (d >= sw.radius - 18 && d <= sw.radius + 18) {
+                    // 1. Respeto Estricto a los I-Frames del Dash / Invulnerabilidad
+                    const isPlayerInvulnerable = player.isDashing || player.invulnTimer > 0 || player.invulnerable;
+                    if (isPlayerInvulnerable) {
+                        // El daño recibido es 0 y se marca para no recibir daño repetido
+                        sw.waveHitPlayer = true;
+                        sw.hitPlayer = true;
+                    } else {
+                        // 4. Reducción de Daño en un 40% (22 -> 13)
+                        const waveDamage = this.enraged ? 15 : 13;
+                        const hit = player.takeDamage(waveDamage, sw.x, sw.y, 280, game);
+                        if (hit) {
+                            // 3. Golpe Único por Salto
+                            sw.waveHitPlayer = true;
+                            sw.hitPlayer = true;
+                        }
+                    }
                 }
             }
+
             if (sw.radius >= sw.maxRadius) {
                 this.shockwaves.splice(i, 1);
             }
@@ -2721,13 +2832,23 @@ class Boss extends Entity {
                     game.addScreenShake(15, 0.38);
                     game.spawnParticles(this.x, this.y, 36, this.enraged ? '#fbbf24' : '#ef4444', 260, true);
 
-                    // Generar onda expansiva circular
+                    // Daño por aplastamiento directo al caer (respetando I-frames de Dash)
+                    const dFall = MathUtils.dist(this.x, this.y, player.x, player.y);
+                    if (dFall < this.radius + player.radius) {
+                        const isPlayerInvulnerable = player.isDashing || player.invulnTimer > 0 || player.invulnerable;
+                        if (!isPlayerInvulnerable && !player.dead) {
+                            player.takeDamage(16, this.x, this.y, 340, game);
+                        }
+                    }
+
+                    // Generar onda expansiva circular (velocidad moderada y daño reducido en 40%)
                     this.shockwaves.push({
                         x: this.x,
                         y: this.y,
                         radius: 25,
-                        maxRadius: this.enraged ? 380 : 300,
-                        speed: this.enraged ? 430 : 340,
+                        maxRadius: this.enraged ? 350 : 280,
+                        speed: this.enraged ? 305 : 245,
+                        waveHitPlayer: false,
                         hitPlayer: false
                     });
 
@@ -2740,10 +2861,13 @@ class Boss extends Entity {
 
         this.updateBase(dt, game);
 
-        // Daño por contacto físico directo cuando está en tierra (balanceado -10%)
+        // Daño por contacto físico directo cuando está en tierra (respetando Dash)
         if (this.isTargetable() && !player.dead) {
             if (MathUtils.circleCollide(this.x, this.y, this.radius, player.x, player.y, player.radius)) {
-                player.takeDamage(20, this.x, this.y, 350, game);
+                const isPlayerInvulnerable = player.isDashing || player.invulnTimer > 0 || player.invulnerable;
+                if (!isPlayerInvulnerable) {
+                    player.takeDamage(20, this.x, this.y, 350, game);
+                }
             }
         }
     }
@@ -4507,7 +4631,7 @@ class Game {
                     const active = cw === key;
                     const color = !owned ? '#475569' : (active ? '#00f5d4' : '#94a3b8');
                     const border = active ? '1px solid #00f5d4' : '1px solid #334155';
-                    return `<span style="display:inline-block;margin-right:4px;padding:1px 5px;border:${border};color:${color};opacity:${owned ? 1 : 0.5};">${n}:${label}${owned ? '' : ' 🔒'}</span>`;
+                    return `<span style="display:inline-block;margin-right:4px;padding:1px 5px;border:${border};color:${color};opacity:${owned ? 1 : 0.5};text-shadow:2px 2px 4px rgba(0,0,0,0.95);background:rgba(15,23,42,0.45);border-radius:2px;">${n}:${label}${owned ? '' : ' 🔒'}</span>`;
                 };
                 this.ui.weaponHint.innerHTML =
                     slot(1, 'ESPADA', true, 'SWORD') +
