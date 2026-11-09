@@ -12,13 +12,27 @@ class Enemy extends Entity {
             : (isChaser ? 48 : 38) + (waveIndex - 1) * 12;
         super(x, y, radius, hp);
 
-        this.archetype = archetype; // 'CHASER' | 'SHOOTER'
+        this.archetype = archetype; // 'CHASER' | 'SHOOTER' | 'TANK'
+        this.waveIndex = waveIndex;
         this.speed = archetype === 'TANK' ? MathUtils.randRange(58, 70) : (isChaser ? MathUtils.randRange(138, 168) : MathUtils.randRange(95, 115));
         this.contactDamage = archetype === 'TANK' ? 8 : (isChaser ? 16 : 10); // Tanque: la mitad del daño normal
         this.attackCooldown = isChaser ? 0.8 : MathUtils.randRange(1.7, 2.3);
         this.attackTimer = MathUtils.randRange(0.4, 1.2);
         this.kbMult = archetype === 'TANK' ? 0.3 : 1; // Tanque: 70% menos retroceso
         this.stepPhase = 0;
+    }
+
+    // Probabilidad de drop de oro calibrada según enemigos de la ronda para otorgar entre 3 y 5 de oro por oleada
+    shouldDropGold(game) {
+        const dropped = game.waveGoldDropped || 0;
+        if (dropped >= 5) return false;
+        const target = game.waveGoldTarget || 4;
+        const aliveRemaining = Math.max(1, game.enemies.filter(e => !e.dead).length + 1);
+        const needed = target - dropped;
+        if (needed > 0 && aliveRemaining <= needed) return true;
+        const totalInWave = Math.max(4, game.waveTotalEnemies || 8);
+        const baseChance = MathUtils.clamp(target / totalInWave, 0.18, 0.75);
+        return Math.random() < (needed > 0 ? Math.max(baseChance, needed / aliveRemaining) : 0.10);
     }
 
     takeDamage(amount, sourceX, sourceY, kbForce, isCrit, game) {

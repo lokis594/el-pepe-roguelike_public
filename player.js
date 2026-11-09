@@ -46,6 +46,14 @@ class Player extends Entity {
         this.damageBoostTimer = 0;
         this.speedBoostTimer = 0;
 
+        // Economía de Oro e Inventario de Pociones (máx 3 por tipo)
+        this.gold = 0;
+        this.potions = { heal: 0, fury: 0, speed: 0 };
+        this.maxPotionStack = 3;
+        this.furyPotionTimer = 0;
+        this.speedPotionTimer = 0;
+        this.speedTrailTimer = 0;
+
         // Estadísticas permanentes de Nivel 2 ("Más Fuerte") y arsenal
         this.hasRifle = false;
         this.rifleCooldown = 0.11; // ~9 disparos/s
@@ -55,6 +63,58 @@ class Player extends Entity {
         this.dmgMult = 1;
         this.moveSpeedMult = 1;
         this.powered = false;
+    }
+
+    get damageMultiplier() {
+        return this.dmgMult * (this.furyPotionTimer > 0 ? 1.3 : 1.0) * (this.damageBoostTimer > 0 ? 1.4 : 1.0);
+    }
+
+    get speedMultiplier() {
+        return this.moveSpeedMult * (this.speedPotionTimer > 0 ? 1.3 : 1.0) * (this.speedBoostTimer > 0 ? 1.3 : 1.0);
+    }
+
+    usePotion(type, game) {
+        if (this.dead || !this.potions) return false;
+        if (type === 'heal') {
+            if (this.potions.heal <= 0) return false;
+            if (this.hp >= this.maxHp) {
+                game.floatingTexts.push(new FloatingText(this.x, this.y - 26, 'VIDA AL MÁXIMO', '#4ade80', 14));
+                return false;
+            }
+            this.potions.heal--;
+            const missingHp = this.maxHp - this.hp;
+            const healAmt = Math.max(1, Math.round(missingHp * 0.55));
+            this.hp = Math.min(this.maxHp, Math.round(this.hp + healAmt));
+            this.triggerSquash(1.22, 0.84);
+            soundManager.playPotionUse();
+            game.spawnParticles(this.x, this.y, 20, '#4ade80', 150, true);
+            game.floatingTexts.push(new FloatingText(this.x, this.y - 28, `+${healAmt} HP (POCIÓN)`, '#4ade80', 17, true));
+            if (game.updateHUD) game.updateHUD();
+            return true;
+        }
+        if (type === 'fury') {
+            if (this.potions.fury <= 0) return false;
+            this.potions.fury--;
+            this.furyPotionTimer = 5.0;
+            this.triggerSquash(1.26, 0.80);
+            soundManager.playPotionUse();
+            game.spawnParticles(this.x, this.y, 22, '#f97316', 165, true);
+            game.floatingTexts.push(new FloatingText(this.x, this.y - 28, '¡FURIA +30% DAÑO (5s)!', '#f97316', 17, true));
+            if (game.updateHUD) game.updateHUD();
+            return true;
+        }
+        if (type === 'speed') {
+            if (this.potions.speed <= 0) return false;
+            this.potions.speed--;
+            this.speedPotionTimer = 5.0;
+            this.triggerSquash(0.82, 1.24);
+            soundManager.playPotionUse();
+            game.spawnParticles(this.x, this.y, 22, '#38bdf8', 175, true);
+            game.floatingTexts.push(new FloatingText(this.x, this.y - 28, '¡VELOCIDAD +30% (5s)!', '#38bdf8', 17, true));
+            if (game.updateHUD) game.updateHUD();
+            return true;
+        }
+        return false;
     }
 
     switchWeapon(weapon, game) {
@@ -132,7 +192,7 @@ class Player extends Entity {
             const bx = this.x + Math.cos(this.aimAngle) * spawnDist;
             const by = this.y + Math.sin(this.aimAngle) * spawnDist;
             const isCrit = Math.random() < 0.22;
-            const dmg = Math.round(20 * this.dmgMult * (this.damageBoostTimer > 0 ? 1.4 : 1.0) * (isCrit ? 1.6 : 1.0));
+            const dmg = Math.round(20 * this.damageMultiplier * (isCrit ? 1.6 : 1.0));
 
             game.projectiles.push(new Projectile(
                 bx, by,
@@ -164,7 +224,7 @@ class Player extends Entity {
             const bx = this.x + Math.cos(this.aimAngle) * spawnDist;
             const by = this.y + Math.sin(this.aimAngle) * spawnDist;
             const isCrit = Math.random() < 0.15;
-            const dmg = Math.round(13 * this.dmgMult * (this.damageBoostTimer > 0 ? 1.4 : 1.0) * (isCrit ? 1.6 : 1.0));
+            const dmg = Math.round(13 * this.damageMultiplier * (isCrit ? 1.6 : 1.0));
 
             game.projectiles.push(new Projectile(
                 bx, by,
@@ -203,14 +263,16 @@ class Player extends Entity {
             dir: this.swingDir,
             life: 0.18,
             maxLife: 0.18,
-            boosted: this.damageBoostTimer > 0
+            boosted: this.damageBoostTimer > 0 || this.furyPotionTimer > 0
         });
     }
 
     update(dt, game) {
-        // Actualizar temporizadores de mejoras
-        if (this.damageBoostTimer > 0) this.damageBoostTimer -= dt;
-        if (this.speedBoostTimer > 0) this.speedBoostTimer -= dt;
+        // Actualizar temporizadores de mejoras y pociones
+        if (this.damageBoostTimer > 0) this.damageBoostTimer = Math.max(0, this.damageBoostTimer - dt);
+        if (this.speedBoostTimer > 0) this.speedBoostTimer = Math.max(0, this.speedBoostTimer - dt);
+        if (this.furyPotionTimer > 0) this.furyPotionTimer = Math.max(0, this.furyPotionTimer - dt);
+        if (this.speedPotionTimer > 0) this.speedPotionTimer = Math.max(0, this.speedPotionTimer - dt);
         if (this.invulnTimer > 0) this.invulnTimer -= dt;
         if (this.dashCooldownTimer > 0) this.dashCooldownTimer = Math.max(0, this.dashCooldownTimer - dt);
         if (this.attackCooldownTimer > 0) this.attackCooldownTimer = Math.max(0, this.attackCooldownTimer - dt);
@@ -256,15 +318,17 @@ class Player extends Entity {
         }
 
         // Inputs de Dash y Ataque (Soporte PC + Móvil Fuego Continuo)
-        if (keys['Space'] || keys['ShiftLeft'] || keys['ShiftRight']) {
-            this.startDash(moveX, moveY, game);
-        }
-        if (game.mouse.down || keys['KeyJ'] || (game.touchControls && game.touchControls.isAttackTouchHeld)) {
-            this.startAttack(game);
+        if (!game.isShopOpen) {
+            if (keys['Space'] || keys['ShiftLeft'] || keys['ShiftRight']) {
+                this.startDash(moveX, moveY, game);
+            }
+            if (game.mouse.down || keys['KeyJ'] || (game.touchControls && game.touchControls.isAttackTouchHeld)) {
+                this.startAttack(game);
+            }
         }
 
         // Lógica de Movimiento o Dash
-        const currentSpeed = this.baseSpeed * this.moveSpeedMult * (this.speedBoostTimer > 0 ? 1.3 : 1.0);
+        const currentSpeed = this.baseSpeed * this.speedMultiplier;
         if (this.isDashing) {
             this.dashTimer -= dt;
             this.vx = this.dashDirX * this.dashSpeed;
@@ -290,6 +354,22 @@ class Player extends Entity {
                 const len = Math.hypot(moveX, moveY);
                 this.vx = (moveX / len) * currentSpeed;
                 this.vy = (moveY / len) * currentSpeed;
+
+                // Rastro azul al moverse bajo el efecto de la Poción de Velocidad
+                if (this.speedPotionTimer > 0) {
+                    this.speedTrailTimer -= dt;
+                    if (this.speedTrailTimer <= 0) {
+                        this.speedTrailTimer = 0.055;
+                        this.afterimages.push({
+                            x: this.x,
+                            y: this.y,
+                            radius: this.radius * 0.85,
+                            life: 0.18,
+                            maxLife: 0.18,
+                            color: '#38bdf8'
+                        });
+                    }
+                }
             } else {
                 this.vx = 0;
                 this.vy = 0;
@@ -326,8 +406,7 @@ class Player extends Entity {
     checkSwordCollisions(game) {
         const halfArc = this.swordArc * 0.5;
         const isCrit = Math.random() < 0.22;
-        const dmgMult = (this.damageBoostTimer > 0 ? 1.4 : 1.0) * (isCrit ? 1.65 : 1.0);
-        const finalDamage = Math.round(this.baseDamage * this.dmgMult * dmgMult);
+        const finalDamage = Math.round(this.baseDamage * this.damageMultiplier * (isCrit ? 1.65 : 1.0));
 
         // Contra Enemigos y Jefe
         const targets = [...game.enemies];
@@ -372,7 +451,7 @@ class Player extends Entity {
         }
 
         // Cortar proyectiles enemigos si se tiene el buff de Furia
-        if (this.damageBoostTimer > 0) {
+        if (this.damageBoostTimer > 0 || this.furyPotionTimer > 0) {
             for (const proj of game.projectiles) {
                 if (proj.dead || !proj.isEnemy) continue;
                 const hit = MathUtils.sectorCircleCollide(
@@ -390,13 +469,14 @@ class Player extends Entity {
     }
 
     draw(ctx) {
-        // 1. Dibujar rastro de Afterimages (Dash)
+        // 1. Dibujar rastro de Afterimages (Dash y Poción de Velocidad)
         for (const img of this.afterimages) {
             ctx.save();
             ctx.globalAlpha = (img.life / img.maxLife) * 0.45;
-            ctx.fillStyle = '#00f5d4';
+            const c = img.color || '#00f5d4';
+            ctx.fillStyle = c;
             ctx.shadowBlur = 12;
-            ctx.shadowColor = '#00f5d4';
+            ctx.shadowColor = c;
             ctx.beginPath();
             ctx.arc(img.x, img.y, img.radius, 0, Math.PI * 2);
             ctx.fill();
@@ -474,7 +554,30 @@ class Player extends Entity {
             ctx.restore();
         }
 
-        // Aura si tiene buff activo (Furia o Prisa)
+        // Aura si tiene buff activo (Furia Naranja, Orbe Furia o Velocidad Azul)
+        if (this.furyPotionTimer > 0) {
+            ctx.save();
+            ctx.strokeStyle = '#f97316';
+            ctx.shadowColor = '#f97316';
+            ctx.shadowBlur = 14;
+            ctx.lineWidth = 2.8;
+            ctx.beginPath();
+            ctx.arc(0, 0, this.radius + 11 + Math.sin(this.animTime * 10) * 2, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+        }
+        if (this.speedPotionTimer > 0) {
+            ctx.save();
+            ctx.strokeStyle = '#38bdf8';
+            ctx.shadowColor = '#38bdf8';
+            ctx.shadowBlur = 14;
+            ctx.lineWidth = 2.5;
+            ctx.setLineDash([6, 4]);
+            ctx.beginPath();
+            ctx.arc(0, 0, this.radius + 14, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+        }
         if (this.damageBoostTimer > 0 || this.speedBoostTimer > 0) {
             ctx.strokeStyle = this.damageBoostTimer > 0 ? '#fbbf24' : '#38bdf8';
             ctx.lineWidth = 2.5;

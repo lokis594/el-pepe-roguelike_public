@@ -96,6 +96,11 @@ class Game {
                     down: false,
                     touchId: null
                 },
+                potions: {
+                    heal: { x: this.width - 280, y: this.height - 84, r: 22, down: false, touchId: null, color: '#4ade80', key: '4' },
+                    fury: { x: this.width - 266, y: this.height - 146, r: 22, down: false, touchId: null, color: '#f97316', key: '5' },
+                    speed: { x: this.width - 204, y: this.height - 162, r: 22, down: false, touchId: null, color: '#38bdf8', key: '6' }
+                },
                 pause: {
                     x: this.width - 55,
                     y: 18,
@@ -132,12 +137,19 @@ class Game {
         this.torches = [];
         this.boss = null;
 
-        // Progresión de Oleadas y Estado de Pausa
+        // Progresión de Oleadas (5 Rondas), Preparación Pre-Jefe y Estado de Pausa
         this.currentWave = 1;
-        this.maxWaves = 3;
+        this.maxWaves = 5;
         this.waveTransitionTimer = 0;
         this.waveCooldown = 0;
         this.waveIntermission = false;
+        this.preBossPrepare = false;
+        this.isShopOpen = false;
+        this.shopPos = { x: 410, y: 340 };
+        this.dancerPos = { x: 690, y: 350 };
+        this.waveTotalEnemies = 7;
+        this.waveGoldDropped = 0;
+        this.waveGoldTarget = 4;
         this.enemiesKilledCount = 0;
         this.isPaused = false;
         this.gunDropped = false;
@@ -284,6 +296,7 @@ class Game {
     }
 
     quitToMainMenu() {
+        this.closeShop();
         this.setPaused(false);
         this.runId++; // Invalida cualquier temporizador o callback pendiente
         this.state = 'MENU';
@@ -297,6 +310,7 @@ class Game {
         this.currentWave = 1;
         this.waveCooldown = 0;
         this.waveIntermission = false;
+        this.preBossPrepare = false;
         this.enemiesKilledCount = 0;
         this.gunDropped = false;
         this.shakeTimer = 0;
@@ -304,6 +318,8 @@ class Game {
 
         if (this.ui) {
             if (this.ui.bossHud) this.ui.bossHud.style.display = 'none';
+            if (this.ui.prebossBar) this.ui.prebossBar.classList.add('hidden');
+            if (this.ui.shopScreen) this.ui.shopScreen.classList.add('hidden');
             if (this.ui.gameoverScreen) this.ui.gameoverScreen.classList.add('hidden');
             if (this.ui.victoryScreen) this.ui.victoryScreen.classList.add('hidden');
             if (this.ui.pauseScreen) this.ui.pauseScreen.classList.add('hidden');
@@ -360,6 +376,22 @@ class Game {
         btn.weapon.r = isMobile ? 22 : 30;
         btn.weapon.x = isMobile ? w - 75 : w - 100;
         btn.weapon.y = isMobile ? h - 155 : h - 230;
+
+        // 3 Círculos táctiles de Pociones justo al lado del botón de DASH
+        if (btn.potions) {
+            const pr = isMobile ? 17 : 22;
+            btn.potions.heal.r = pr;
+            btn.potions.heal.x = btn.dash.x - (isMobile ? 52 : 68);
+            btn.potions.heal.y = btn.dash.y + (isMobile ? 3 : 4);
+
+            btn.potions.fury.r = pr;
+            btn.potions.fury.x = btn.dash.x - (isMobile ? 42 : 56);
+            btn.potions.fury.y = btn.dash.y - (isMobile ? 42 : 55);
+
+            btn.potions.speed.r = pr;
+            btn.potions.speed.x = btn.dash.x + (isMobile ? 4 : 6);
+            btn.potions.speed.y = btn.dash.y - (isMobile ? 52 : 68);
+        }
 
         // Botones del HUD en la esquina superior derecha
         btn.pause.w = isMobile ? 36 : 42;
@@ -450,8 +482,12 @@ class Game {
                 this.startNewRun();
             }
 
-            // Pausa (Escape) o volver al Menú Principal
+            // Pausa (Escape), cerrar tienda o volver al Menú Principal
             if (e.code === 'Escape') {
+                if (this.isShopOpen) {
+                    this.closeShop();
+                    return;
+                }
                 if (this.state === 'MENU') {
                     this.showMenuView('main');
                 } else if (this.isPaused) {
@@ -466,7 +502,7 @@ class Game {
                 }
             }
 
-            // Selección / Cambio de arma
+            // Selección / Cambio de arma, Uso de Pociones (4, 5, 6) e Interacción Pre-Jefe (E / T)
             if (!this.isPaused && this.player && !this.player.dead) {
                 if (e.code === 'Digit1') {
                     this.player.switchWeapon('SWORD', this);
@@ -476,6 +512,21 @@ class Game {
                     this.player.switchWeapon('RIFLE', this);
                 } else if (e.code === 'KeyQ') {
                     this.player.toggleWeapon(this);
+                } else if ((e.code === 'Digit4' || e.code === 'Numpad4') && !e.repeat) {
+                    this.player.usePotion('heal', this);
+                } else if ((e.code === 'Digit5' || e.code === 'Numpad5') && !e.repeat) {
+                    this.player.usePotion('fury', this);
+                } else if ((e.code === 'Digit6' || e.code === 'Numpad6') && !e.repeat) {
+                    this.player.usePotion('speed', this);
+                } else if (e.code === 'KeyT' && !e.repeat && this.preBossPrepare) {
+                    if (this.isShopOpen) this.closeShop();
+                    else this.openShop();
+                } else if (e.code === 'KeyE' && !e.repeat && this.preBossPrepare && !this.isShopOpen) {
+                    if (this.isNearDancer()) {
+                        this.summonBossFromPrep();
+                    } else if (this.isNearShop()) {
+                        this.openShop();
+                    }
                 }
             }
         });
@@ -486,7 +537,7 @@ class Game {
 
         // Cambio de arma con rueda del ratón
         window.addEventListener('wheel', (e) => {
-            if (!this.isPaused && this.player && !this.player.dead) {
+            if (!this.isPaused && !this.isShopOpen && this.player && !this.player.dead) {
                 this.player.toggleWeapon(this);
             }
         }, { passive: true });
@@ -528,9 +579,25 @@ class Game {
                     return;
                 }
 
-                if (this.isPaused) {
+                if (this.isPaused || this.isShopOpen) {
                     return;
                 }
+
+                // Interacción por clic en el mundo durante la Sala de Preparación Pre-Jefe
+                if (this.preBossPrepare) {
+                    const zoom = this.cameraZoom || 1.0;
+                    const wx = clickX / zoom + this.camera.x;
+                    const wy = clickY / zoom + this.camera.y;
+                    if (MathUtils.dist(wx, wy, this.shopPos.x, this.shopPos.y) <= 75) {
+                        this.openShop();
+                        return;
+                    }
+                    if (this.isNearDancer() && MathUtils.dist(wx, wy, this.dancerPos.x, this.dancerPos.y - 10) <= 85) {
+                        this.summonBossFromPrep();
+                        return;
+                    }
+                }
+
                 this.mouse.down = true;
             }
         });
@@ -574,11 +641,45 @@ class Game {
                     continue;
                 }
 
-                if (this.isPaused) {
+                if (this.isPaused || this.isShopOpen) {
                     continue;
                 }
 
                 if (this.state === 'PLAYING' || this.state === 'BOSS_INTRO') {
+                    // 0. Círculos Táctiles de las 3 Pociones (junto al botón de DASH)
+                    const potBtns = this.touchControls.buttons.potions;
+                    if (potBtns && this.player && !this.player.dead) {
+                        let potionHit = false;
+                        for (const pType of ['heal', 'fury', 'speed']) {
+                            const pBtn = potBtns[pType];
+                            if (MathUtils.dist(pos.x, pos.y, pBtn.x, pBtn.y) <= pBtn.r + (this.isMobileView ? 6 : 8)) {
+                                pBtn.down = true;
+                                pBtn.touchId = t.identifier;
+                                if ((this.player.potions[pType] || 0) > 0) {
+                                    this.player.usePotion(pType, this);
+                                }
+                                potionHit = true;
+                                break;
+                            }
+                        }
+                        if (potionHit) continue;
+                    }
+
+                    // Interacción táctil directa sobre el puesto de Tienda o el Bailarín en el mundo
+                    if (this.preBossPrepare) {
+                        const zoom = this.cameraZoom || 1.0;
+                        const wx = pos.x / zoom + this.camera.x;
+                        const wy = pos.y / zoom + this.camera.y;
+                        if (MathUtils.dist(wx, wy, this.shopPos.x, this.shopPos.y) <= 75) {
+                            this.openShop();
+                            continue;
+                        }
+                        if (this.isNearDancer() && MathUtils.dist(wx, wy, this.dancerPos.x, this.dancerPos.y - 10) <= 90) {
+                            this.summonBossFromPrep();
+                            continue;
+                        }
+                    }
+
                     // 1. Mitad Izquierda de la Pantalla -> Joystick Virtual de Movimiento
                     if (pos.x < this.width * 0.45) {
                         const js = this.touchControls.joystick;
@@ -700,6 +801,7 @@ class Game {
             const atkBtn = this.touchControls.buttons.attack;
             const dashBtn = this.touchControls.buttons.dash;
             const wepBtn = this.touchControls.buttons.weapon;
+            const potBtns = this.touchControls.buttons.potions;
 
             for (let i = 0; i < e.changedTouches.length; i++) {
                 const t = e.changedTouches[i];
@@ -729,6 +831,15 @@ class Game {
                     wepBtn.down = false;
                     wepBtn.touchId = null;
                 }
+
+                if (potBtns) {
+                    for (const pType of ['heal', 'fury', 'speed']) {
+                        if (potBtns[pType].touchId === t.identifier) {
+                            potBtns[pType].down = false;
+                            potBtns[pType].touchId = null;
+                        }
+                    }
+                }
             }
         };
 
@@ -750,7 +861,14 @@ class Game {
             buffIndicator: $('buff-indicator'), bossHud: $('boss-hud'), bossHpBar: $('boss-hp-bar'), bossTitle: $('boss-title'),
             gameoverStats: $('gameover-stats'), victoryStats: $('victory-stats'), levelBadge: $('level-badge'),
             victoryTitle: $('victory-title'), victorySubtitle: $('victory-subtitle'), btnNextLevel: $('btn-next-level'),
-            pauseScreen: $('pause-screen')
+            pauseScreen: $('pause-screen'),
+            goldText: $('gold-text'),
+            potCountHeal: $('pot-count-heal'), potCountFury: $('pot-count-fury'), potCountSpeed: $('pot-count-speed'),
+            potSlotHeal: $('pot-slot-heal'), potSlotFury: $('pot-slot-fury'), potSlotSpeed: $('pot-slot-speed'),
+            prebossBar: $('preboss-bar'), btnOpenShopHud: $('btn-open-shop-hud'), btnSummonBoss: $('btn-summon-boss'),
+            shopScreen: $('shop-screen'), shopGoldVal: $('shop-gold-val'),
+            shopCountHeal: $('shop-count-heal'), shopCountFury: $('shop-count-fury'), shopCountSpeed: $('shop-count-speed'),
+            btnBuyHeal: $('btn-buy-heal'), btnBuyFury: $('btn-buy-fury'), btnBuySpeed: $('btn-buy-speed')
         };
 
         // Soporte Dual Táctil + Clic para Navegación en Pantallas Superpuestas
@@ -780,7 +898,16 @@ class Game {
             'btn-pause-hud-toggle': () => this.setPaused(false),
             'btn-pause-options': () => this.showPauseView('options'),
             'btn-back-pause-options': () => this.showPauseView('main'),
-            'btn-quit-to-menu': () => this.quitToMainMenu()
+            'btn-quit-to-menu': () => this.quitToMainMenu(),
+            'btn-open-shop-hud': () => this.openShop(),
+            'btn-close-shop': () => this.closeShop(),
+            'btn-buy-heal': () => this.buyPotion('heal'),
+            'btn-buy-fury': () => this.buyPotion('fury'),
+            'btn-buy-speed': () => this.buyPotion('speed'),
+            'btn-summon-boss': () => this.summonBossFromPrep(),
+            'pot-slot-heal': () => { if (!this.isPaused && this.player) this.player.usePotion('heal', this); },
+            'pot-slot-fury': () => { if (!this.isPaused && this.player) this.player.usePotion('fury', this); },
+            'pot-slot-speed': () => { if (!this.isPaused && this.player) this.player.usePotion('speed', this); }
         };
         for (const id in uiActions) bindUIButton(id, uiActions[id]);
 
@@ -1134,6 +1261,8 @@ class Game {
         this.ui.gameoverScreen.classList.add('hidden');
         this.ui.victoryScreen.classList.add('hidden');
         if (this.ui.pauseScreen) this.ui.pauseScreen.classList.add('hidden');
+        if (this.ui.shopScreen) this.ui.shopScreen.classList.add('hidden');
+        if (this.ui.prebossBar) this.ui.prebossBar.classList.add('hidden');
         this.ui.bossHud.style.display = 'none';
 
         this.initArenaEnvironment();
@@ -1163,6 +1292,8 @@ class Game {
         p.rifleRecoil = 0;
         p.damageBoostTimer = 0;
         p.speedBoostTimer = 0;
+        p.furyPotionTimer = 0;
+        p.speedPotionTimer = 0;
         p.scaleX = p.scaleY = 1;
         p.afterimages = [];
         p.slashTrails = [];
@@ -1184,6 +1315,8 @@ class Game {
         this.enemiesKilledCount = 0;
         this.waveCooldown = 0;
         this.waveIntermission = false;
+        this.preBossPrepare = false;
+        this.isShopOpen = false;
         this.waveTransitionTimer = 0;
         this.bossIntroTimer = 0;
         this.shakeIntensity = 0;
@@ -1248,6 +1381,11 @@ class Game {
         const shooterCount = (isL2 ? 2 : 1) + waveNum;
         const tankCount = isL2 ? waveNum : 0;
 
+        // Calibración de oro por ronda: entre 3 y 5 bolsas de oro garantizadas en promedio por oleada
+        this.waveTotalEnemies = chaserCount + shooterCount + tankCount;
+        this.waveGoldDropped = 0;
+        this.waveGoldTarget = MathUtils.randInt(3, 5);
+
         const spawnPointAwayFromPlayer = () => {
             let sx, sy, tries = 0;
             if (isL2 && this.spawners.length > 0) {
@@ -1293,6 +1431,14 @@ class Game {
         this.enemiesKilledCount++;
         this.spawnParticles(enemy.x, enemy.y, 18, enemy.archetype === 'TANK' ? '#f97316' : (enemy.archetype === 'CHASER' ? '#f43f5e' : '#a855f7'), 190, true);
 
+        // Drop calibrado de moneda/bolsa de oro recolectable (promedio 3 a 5 de oro por ronda)
+        if (enemy.shouldDropGold && enemy.shouldDropGold(this)) {
+            this.waveGoldDropped = (this.waveGoldDropped || 0) + 1;
+            const gx = MathUtils.clamp(enemy.x + MathUtils.randRange(-14, 14), this.arena.x + 24, this.arena.x + this.arena.w - 24);
+            const gy = MathUtils.clamp(enemy.y + MathUtils.randRange(-14, 14), this.arena.y + 24, this.arena.y + this.arena.h - 24);
+            this.pickups.push(new ItemPickup(gx, gy, 'gold'));
+        }
+
         // Condición Estricta de Drop de Pistola:
         // Solo si el jugador NO la ha desbloqueado Y NO hay ya una pistola tirada en el suelo
         const playerHasGun = this.player && this.player.hasGun;
@@ -1309,7 +1455,7 @@ class Game {
             this.floatingTexts.push(new FloatingText(enemy.x, enemy.y - 25, '¡DROP DE PISTOLA!', '#38bdf8', 16, true));
         } else {
             // Probabilidad normal de soltar un orbe de curación o mejora temporal (Espíritu Roguelike)
-            if (Math.random() < 0.40) {
+            if (Math.random() < 0.32) {
                 const roll = Math.random();
                 let type = 'HEAL';
                 if (roll > 0.5 && roll <= 0.78) type = 'FURY';
@@ -1317,6 +1463,120 @@ class Game {
                 this.pickups.push(new PickupOrb(enemy.x, enemy.y, type));
             }
         }
+    }
+
+    // Configura la Sala de Preparación Pre-Jefe al terminar la Ronda 5 (sin límite de tiempo)
+    setupPreBossRoom() {
+        this.preBossPrepare = true;
+        this.isShopOpen = false;
+        this.waveCooldown = 0;
+
+        // Colocar puesto de tienda y muñeco bailarín cerca del jugador / centro de la arena
+        const cx = this.arena.x + this.arena.w * 0.5;
+        const cy = this.arena.y + this.arena.h * 0.5;
+        const refX = this.player ? MathUtils.clamp(this.player.x, this.arena.x + 240, this.arena.x + this.arena.w - 240) : cx;
+        const refY = this.player ? MathUtils.clamp(this.player.y, this.arena.y + 180, this.arena.y + this.arena.h - 180) : cy;
+
+        this.shopPos = { x: refX - 145, y: refY - 25 };
+        this.dancerPos = { x: refX + 145, y: refY - 15 };
+
+        this.spawnParticles(this.shopPos.x, this.shopPos.y, 28, '#ffd700', 160, true);
+        this.spawnParticles(this.dancerPos.x, this.dancerPos.y, 28, '#00f0ff', 160, true);
+        this.floatingTexts.push(new FloatingText(refX, refY - 75, '¡TIENDA ABIERTA! PREPÁRATE ANTES DEL JEFE', '#ffd700', 20, true));
+        soundManager.playPickup();
+    }
+
+    isNearDancer() {
+        if (!this.preBossPrepare || !this.player || this.player.dead) return false;
+        return MathUtils.dist(this.player.x, this.player.y, this.dancerPos.x, this.dancerPos.y) < 110;
+    }
+
+    isNearShop() {
+        if (!this.preBossPrepare || !this.player || this.player.dead) return false;
+        return MathUtils.dist(this.player.x, this.player.y, this.shopPos.x, this.shopPos.y) < 120;
+    }
+
+    openShop() {
+        if (!this.preBossPrepare || this.state !== 'PLAYING' || this.isPaused) return;
+        this.isShopOpen = true;
+        this.mouse.down = false;
+        if (this.touchControls) {
+            this.touchControls.isAttackTouchHeld = false;
+            this.touchControls.joystick.active = false;
+            this.touchControls.joystick.dirX = 0;
+            this.touchControls.joystick.dirY = 0;
+        }
+        this.syncShopUI();
+        if (this.ui && this.ui.shopScreen) {
+            this.ui.shopScreen.classList.remove('hidden');
+        }
+    }
+
+    closeShop() {
+        this.isShopOpen = false;
+        if (this.ui && this.ui.shopScreen) {
+            this.ui.shopScreen.classList.add('hidden');
+        }
+    }
+
+    syncShopUI() {
+        if (!this.player || !this.ui) return;
+        const gold = this.player.gold || 0;
+        const pots = this.player.potions || { heal: 0, fury: 0, speed: 0 };
+        const maxS = this.player.maxPotionStack || 3;
+
+        if (this.ui.shopGoldVal) this.ui.shopGoldVal.textContent = gold;
+        if (this.ui.shopCountHeal) this.ui.shopCountHeal.textContent = `${pots.heal}/${maxS}`;
+        if (this.ui.shopCountFury) this.ui.shopCountFury.textContent = `${pots.fury}/${maxS}`;
+        if (this.ui.shopCountSpeed) this.ui.shopCountSpeed.textContent = `${pots.speed}/${maxS}`;
+
+        const items = [
+            { btn: this.ui.btnBuyHeal, count: pots.heal, cost: 3 },
+            { btn: this.ui.btnBuyFury, count: pots.fury, cost: 5 },
+            { btn: this.ui.btnBuySpeed, count: pots.speed, cost: 4 }
+        ];
+        for (const it of items) {
+            if (!it.btn) continue;
+            const full = it.count >= maxS;
+            const canAfford = gold >= it.cost;
+            const disabled = full || !canAfford;
+            it.btn.disabled = disabled;
+            it.btn.classList.toggle('btn-disabled', disabled);
+            if (full) {
+                it.btn.textContent = `LLENO (${maxS}/${maxS})`;
+            } else if (!canAfford) {
+                it.btn.textContent = `SIN ORO (${it.cost} ORO)`;
+            } else {
+                it.btn.textContent = `COMPRAR (${it.cost} ORO)`;
+            }
+        }
+    }
+
+    buyPotion(type) {
+        if (!this.player || !this.preBossPrepare) return false;
+        const costs = { heal: 3, fury: 5, speed: 4 };
+        const cost = costs[type];
+        if (!cost) return false;
+        const maxS = this.player.maxPotionStack || 3;
+        if ((this.player.potions[type] || 0) >= maxS) return false;
+        if ((this.player.gold || 0) < cost) return false;
+
+        this.player.gold -= cost;
+        this.player.potions[type] = (this.player.potions[type] || 0) + 1;
+        soundManager.playPickup();
+        this.syncShopUI();
+        this.updateHUD();
+        return true;
+    }
+
+    summonBossFromPrep() {
+        if (!this.preBossPrepare || !this.isNearDancer()) return;
+        this.closeShop();
+        this.preBossPrepare = false;
+        this.waveIntermission = false;
+        this.waveCooldown = 0;
+        if (this.ui && this.ui.prebossBar) this.ui.prebossBar.classList.add('hidden');
+        this.triggerBossEntrance();
     }
 
     triggerBossEntrance() {
@@ -1478,12 +1738,17 @@ class Game {
                 if (this.projectiles[i].dead) this.projectiles.splice(i, 1);
             }
 
-            // Control de progresión de Oleadas con 10s de descanso e intermedio de baile Fortnite
+            // Control de progresión de Oleadas: 10s de descanso en rondas 1-4; Sala Pre-Jefe sin límite tras Ronda 5
             if (this.enemies.length === 0 && !this.boss && this.state === 'PLAYING') {
                 if (!this.waveIntermission) {
                     this.waveIntermission = true;
-                    this.waveCooldown = 10.0;
-                } else {
+                    if (this.currentWave >= this.maxWaves) {
+                        this.setupPreBossRoom();
+                    } else {
+                        this.preBossPrepare = false;
+                        this.waveCooldown = 10.0;
+                    }
+                } else if (!this.preBossPrepare) {
                     this.waveCooldown -= dt;
                     if (this.waveCooldown <= 0) {
                         this.waveIntermission = false;
@@ -1492,7 +1757,7 @@ class Game {
                             this.currentWave++;
                             this.spawnWave(this.currentWave);
                         } else {
-                            this.triggerBossEntrance();
+                            this.setupPreBossRoom();
                         }
                     }
                 }
@@ -1519,6 +1784,27 @@ class Game {
         if (this.ui.levelBadge) this.ui.levelBadge.style.display = (this.level === 2 && this.player.powered) ? 'block' : 'none';
         this.ui.hpBar.style.width = `${hpPct}%`;
         this.ui.hpText.textContent = `${this.player.hp} / ${this.player.maxHp}`;
+        if (this.ui.goldText) this.ui.goldText.textContent = `${this.player.gold || 0}`;
+
+        // Actualizar inventario de las 3 Pociones en el HUD ([4], [5], [6])
+        if (this.player.potions) {
+            const pots = this.player.potions;
+            if (this.ui.potCountHeal) this.ui.potCountHeal.textContent = `x${pots.heal || 0}`;
+            if (this.ui.potCountFury) this.ui.potCountFury.textContent = `x${pots.fury || 0}`;
+            if (this.ui.potCountSpeed) this.ui.potCountSpeed.textContent = `x${pots.speed || 0}`;
+            if (this.ui.potSlotHeal) this.ui.potSlotHeal.style.opacity = (pots.heal || 0) > 0 ? '1' : '0.45';
+            if (this.ui.potSlotFury) this.ui.potSlotFury.style.opacity = (pots.fury || 0) > 0 ? '1' : '0.45';
+            if (this.ui.potSlotSpeed) this.ui.potSlotSpeed.style.opacity = (pots.speed || 0) > 0 ? '1' : '0.45';
+        }
+
+        // Barra inferior de interacción durante la fase Pre-Jefe (Tienda y Bailarín)
+        if (this.ui.prebossBar) {
+            const showBar = this.preBossPrepare && this.state === 'PLAYING' && !this.isShopOpen && !this.isPaused;
+            this.ui.prebossBar.classList.toggle('hidden', !showBar);
+            if (showBar && this.ui.btnSummonBoss) {
+                this.ui.btnSummonBoss.classList.toggle('hidden', !this.isNearDancer());
+            }
+        }
 
         const dashReadyPct = this.player.dashCooldownTimer <= 0
             ? 100
@@ -1527,8 +1813,13 @@ class Game {
         this.ui.dashText.textContent = this.player.dashCooldownTimer <= 0 ? 'LISTO' : 'RECARGANDO';
 
         if (!this.boss) {
-            this.ui.waveCounter.textContent = `OLEADA: ${this.currentWave} / ${this.maxWaves}`;
-            this.ui.waveCounter.style.color = '#00f5d4';
+            if (this.preBossPrepare) {
+                this.ui.waveCounter.textContent = `PREPARACIÓN PRE-JEFE (5 / ${this.maxWaves})`;
+                this.ui.waveCounter.style.color = '#ffd700';
+            } else {
+                this.ui.waveCounter.textContent = `OLEADA: ${this.currentWave} / ${this.maxWaves}`;
+                this.ui.waveCounter.style.color = '#00f5d4';
+            }
         }
 
         // Indicador de Arma en el HUD
@@ -1558,8 +1849,10 @@ class Game {
             }
         }
 
-        // Indicador de mejoras activas
+        // Indicador de mejoras activas (Orbes y Pociones)
         const buffs = [];
+        if (this.player.furyPotionTimer > 0) buffs.push(`POCIÓN FURIA +30% (${this.player.furyPotionTimer.toFixed(1)}s)`);
+        if (this.player.speedPotionTimer > 0) buffs.push(`POCIÓN VEL +30% (${this.player.speedPotionTimer.toFixed(1)}s)`);
         if (this.player.damageBoostTimer > 0) buffs.push(`FURIA (${this.player.damageBoostTimer.toFixed(1)}s)`);
         if (this.player.speedBoostTimer > 0) buffs.push(`PRISA (${this.player.speedBoostTimer.toFixed(1)}s)`);
         this.ui.buffIndicator.textContent = buffs.join(' | ');
@@ -1719,10 +2012,7 @@ class Game {
         }
     }
 
-    drawFortniteInterlude(ctx) {
-        const cx = this.camera.x + this.width * 0.5;
-        const cy = this.camera.y + this.height * 0.5;
-
+    drawFortniteDancerAt(ctx, cx, cy) {
         // 1. Foco de luz disco / neón en el suelo bajo la silueta
         ctx.save();
         const spotRadius = 88 + Math.sin(this.globalTime * 8) * 8;
@@ -1738,17 +2028,14 @@ class Game {
         ctx.restore();
 
         // 2. Silueta Humanoide Articulada ejecutando "The Floss" a 120 BPM
-        // 120 BPM = 2.0 Hz -> fase = globalTime * 4 * PI
         const phase = this.globalTime * Math.PI * 4;
-        const hipSway = Math.sin(phase) * 18; // balanceo rítmico e intenso de caderas
+        const hipSway = Math.sin(phase) * 18;
         const bounce = Math.abs(Math.sin(phase * 2)) * 3;
-        // Brazos van en dirección opuesta a las caderas cruzando cintura
         const armSwingAngle = -Math.sin(phase) * 1.18;
 
         ctx.save();
         ctx.translate(cx, cy);
 
-        // Estilo de silueta oscura #111 con contorno brillante cian/violeta neón (#00f0ff)
         ctx.fillStyle = '#10121a';
         ctx.strokeStyle = '#00f0ff';
         ctx.shadowColor = '#00f0ff';
@@ -1757,16 +2044,12 @@ class Game {
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
 
-        // Pies fijos en el suelo
         const leftFootX = -18;
         const rightFootX = 18;
         const floorY = 42;
-
-        // Caderas/Pelvis oscilando intensamente
         const pelvisX = hipSway;
         const pelvisY = 15 - bounce;
 
-        // Piernas (Muslos y Pantorrillas articuladas)
         // Pierna Izquierda
         const leftKneeX = (leftFootX + pelvisX) * 0.5 - 4;
         const leftKneeY = (floorY + pelvisY) * 0.5 + 2;
@@ -1785,13 +2068,13 @@ class Game {
         ctx.lineTo(rightFootX, floorY);
         ctx.stroke();
 
-        // Pies (suela blocky)
+        // Pies
         ctx.fillRect(leftFootX - 8, floorY - 2, 14, 5);
         ctx.strokeRect(leftFootX - 8, floorY - 2, 14, 5);
         ctx.fillRect(rightFootX - 6, floorY - 2, 14, 5);
         ctx.strokeRect(rightFootX - 6, floorY - 2, 14, 5);
 
-        // Torso humanoide (inclinado con contrapeso al balanceo de cadera)
+        // Torso
         const chestX = -hipSway * 0.35;
         const chestY = -13 - bounce;
         ctx.beginPath();
@@ -1803,7 +2086,7 @@ class Game {
         ctx.fill();
         ctx.stroke();
 
-        // Cabeza con silueta
+        // Cabeza
         const headX = -hipSway * 0.2;
         const headY = chestY - 18;
         ctx.beginPath();
@@ -1811,12 +2094,11 @@ class Game {
         ctx.fill();
         ctx.stroke();
 
-        // Brazos articulados (Hombro -> Codo -> Mano) cruzando rápidamente por delante y detrás (The Floss)
+        // Brazos articulados
         const leftShoulderX = chestX - 12;
         const rightShoulderX = chestX + 12;
         const shoulderY = chestY + 2;
 
-        // Brazo 1 (Izquierdo):
         const arm1Angle = Math.PI * 0.5 + armSwingAngle;
         const leftElbowX = leftShoulderX + Math.cos(arm1Angle) * 16;
         const leftElbowY = shoulderY + Math.sin(arm1Angle) * 16;
@@ -1834,7 +2116,6 @@ class Game {
         ctx.fill();
         ctx.stroke();
 
-        // Brazo 2 (Derecho):
         const arm2Angle = Math.PI * 0.5 + armSwingAngle;
         const rightElbowX = rightShoulderX + Math.cos(arm2Angle) * 16;
         const rightElbowY = shoulderY + Math.sin(arm2Angle) * 16;
@@ -1875,8 +2156,18 @@ class Game {
             ctx.fillText(musicalIcons[i], ix, iy);
             ctx.restore();
         }
+    }
 
-        // 4. Cartel grande en pantalla: "¡RONDA COMPLETADA! SIGUIENTE RONDA EN: X.Xs"
+    drawFortniteInterlude(ctx) {
+        const zoom = this.cameraZoom || 1.0;
+        const viewW = this.width / zoom;
+        const viewH = this.height / zoom;
+        const cx = this.camera.x + viewW * 0.5;
+        const cy = this.camera.y + viewH * 0.5;
+
+        this.drawFortniteDancerAt(ctx, cx, cy);
+
+        // Cartel grande en pantalla: "¡RONDA COMPLETADA! SIGUIENTE RONDA EN: X.Xs"
         ctx.save();
         const bannerY = Math.max(this.arena.y, this.camera.y) + 75;
         const bw = 560;
@@ -1898,16 +2189,182 @@ class Game {
         ctx.shadowBlur = 12;
         ctx.fillText('¡RONDA COMPLETADA!', cx, bannerY - 13);
 
-        const isLastWave = this.currentWave >= this.maxWaves;
-        const timerText = isLastWave
-            ? `¡PREPÁRATE PARA EL PEPE MAESTRO EN: ${Math.max(0, this.waveCooldown).toFixed(1)}s!`
-            : `SIGUIENTE RONDA EN: ${Math.max(0, this.waveCooldown).toFixed(1)}s`;
-
+        const timerText = `SIGUIENTE RONDA EN: ${Math.max(0, this.waveCooldown).toFixed(1)}s`;
         ctx.font = '900 16px "Courier New", monospace';
-        ctx.fillStyle = isLastWave ? '#ef4444' : '#fbbf24';
-        ctx.shadowColor = ctx.fillStyle;
+        ctx.fillStyle = '#fbbf24';
+        ctx.shadowColor = '#fbbf24';
         ctx.shadowBlur = 8;
         ctx.fillText(timerText, cx, bannerY + 15);
+        ctx.restore();
+    }
+
+    drawPreBossRoom(ctx) {
+        const sx = this.shopPos.x;
+        const sy = this.shopPos.y;
+        const dx = this.dancerPos.x;
+        const dy = this.dancerPos.y;
+        const nearShop = this.isNearShop();
+        const nearDancer = this.isNearDancer();
+
+        // 1. PUESTO DE LA TIENDA DE POCIONES
+        ctx.save();
+        ctx.translate(sx, sy);
+
+        // Alfombra / Aura dorada en el suelo bajo la tienda
+        const shopGlow = ctx.createRadialGradient(0, 22, 6, 0, 22, 78);
+        shopGlow.addColorStop(0, 'rgba(255, 215, 0, 0.32)');
+        shopGlow.addColorStop(0.6, 'rgba(168, 85, 247, 0.16)');
+        shopGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = shopGlow;
+        ctx.beginPath();
+        ctx.ellipse(0, 26, 78, 36, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Postes de madera laterales del puesto
+        ctx.fillStyle = '#5c3a1e';
+        ctx.strokeStyle = '#1e1b18';
+        ctx.lineWidth = 2;
+        ctx.fillRect(-46, -36, 7, 66);
+        ctx.strokeRect(-46, -36, 7, 66);
+        ctx.fillRect(39, -36, 7, 66);
+        ctx.strokeRect(39, -36, 7, 66);
+
+        // Mercader místico detrás del mostrador
+        ctx.fillStyle = '#311042';
+        ctx.beginPath();
+        ctx.arc(0, -10, 14, Math.PI, 0, false);
+        ctx.lineTo(14, 6);
+        ctx.lineTo(-14, 6);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+        // Ojos brillantes del mercader
+        ctx.fillStyle = '#ffd700';
+        ctx.fillRect(-5, -13, 3, 3);
+        ctx.fillRect(2, -13, 3, 3);
+
+        // Mostrador de madera robusta
+        ctx.fillStyle = '#78350f';
+        ctx.strokeStyle = '#271206';
+        ctx.lineWidth = 2;
+        ctx.fillRect(-50, 4, 100, 26);
+        ctx.strokeRect(-50, 4, 100, 26);
+        ctx.fillStyle = '#92400e';
+        ctx.fillRect(-52, 0, 104, 7);
+        ctx.strokeRect(-52, 0, 104, 7);
+
+        // Los 3 frascos de poción expuestos sobre el mostrador + bolsita de oro
+        drawPotionFlask(ctx, -28, -5, 8.5, '#4ade80');
+        drawPotionFlask(ctx, -4, -5, 8.5, '#f97316');
+        drawPotionFlask(ctx, 20, -5, 8.5, '#38bdf8');
+        drawGoldBagIcon(ctx, 38, -3, 7.5);
+
+        // Toldo superior a rayas (púrpura y dorado)
+        const stripes = 5;
+        const awningW = 108;
+        const stripeW = awningW / stripes;
+        for (let i = 0; i < stripes; i++) {
+            ctx.fillStyle = i % 2 === 0 ? '#7e22ce' : '#eab308';
+            ctx.fillRect(-awningW * 0.5 + i * stripeW, -46, stripeW, 14);
+            ctx.strokeRect(-awningW * 0.5 + i * stripeW, -46, stripeW, 14);
+        }
+
+        // Letrero flotante: "TIENDA DE POCIONES"
+        const bob = Math.sin(this.globalTime * 4) * 3;
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
+        ctx.strokeStyle = nearShop ? '#00f5d4' : '#ffd700';
+        ctx.lineWidth = 2;
+        ctx.shadowColor = nearShop ? '#00f5d4' : '#ffd700';
+        ctx.shadowBlur = 12;
+        ctx.fillRect(-82, -80 + bob, 164, 24);
+        ctx.strokeRect(-82, -80 + bob, 164, 24);
+
+        ctx.shadowBlur = 0;
+        ctx.font = '900 12px "Courier New", monospace';
+        ctx.fillStyle = '#ffd700';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('TIENDA DE POCIONES', 0, -68 + bob);
+
+        if (nearShop) {
+            ctx.fillStyle = 'rgba(6, 10, 20, 0.92)';
+            ctx.strokeStyle = '#00f5d4';
+            ctx.lineWidth = 1.5;
+            ctx.fillRect(-92, 36, 184, 20);
+            ctx.strokeRect(-92, 36, 184, 20);
+            ctx.fillStyle = '#00f5d4';
+            ctx.font = '900 10.5px "Courier New", monospace';
+            ctx.fillText('[T / E / CLICK]: ABRIR TIENDA', 0, 46);
+        }
+        ctx.restore();
+
+        // 2. MUÑECO AZUL BAILANDO FORTNITE PARA INVOCAR A EL PEPE MAESTRO
+        this.drawFortniteDancerAt(ctx, dx, dy);
+
+        ctx.save();
+        const dBob = Math.sin(this.globalTime * 5) * 3;
+        if (nearDancer) {
+            const pw = 268;
+            const ph = 28;
+            const py = dy - 74 + dBob;
+            ctx.fillStyle = 'rgba(8, 15, 30, 0.95)';
+            ctx.strokeStyle = '#00f0ff';
+            ctx.lineWidth = 2.2;
+            ctx.shadowColor = '#00f0ff';
+            ctx.shadowBlur = 16;
+            ctx.fillRect(dx - pw * 0.5, py, pw, ph);
+            ctx.strokeRect(dx - pw * 0.5, py, pw, ph);
+
+            ctx.shadowBlur = 0;
+            ctx.fillStyle = '#00f0ff';
+            ctx.font = '900 11.5px "Courier New", monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('[E / TOCAR AQUÍ]: ¡IR A POR EL PEPE!', dx, py + ph * 0.5);
+        } else {
+            const pw = 210;
+            const ph = 22;
+            const py = dy - 70 + dBob;
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+            ctx.strokeStyle = '#38bdf8';
+            ctx.lineWidth = 1.5;
+            ctx.fillRect(dx - pw * 0.5, py, pw, ph);
+            ctx.strokeRect(dx - pw * 0.5, py, pw, ph);
+
+            ctx.fillStyle = '#38bdf8';
+            ctx.font = '900 10.5px "Courier New", monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('ACÉRCATE PARA INVOCAR AL JEFE', dx, py + ph * 0.5);
+        }
+        ctx.restore();
+
+        // 3. Cartel informativo superior en cámara
+        ctx.save();
+        const zoom = this.cameraZoom || 1.0;
+        const viewW = this.width / zoom;
+        const camCx = this.camera.x + viewW * 0.5;
+        const bannerY = Math.max(this.arena.y, this.camera.y) + 58;
+        const bw = 610;
+        const bh = 54;
+
+        ctx.fillStyle = 'rgba(8, 12, 22, 0.88)';
+        ctx.strokeStyle = '#ffd700';
+        ctx.lineWidth = 2;
+        ctx.shadowColor = '#ffd700';
+        ctx.shadowBlur = 14;
+        ctx.fillRect(camCx - bw * 0.5, bannerY - bh * 0.5, bw, bh);
+        ctx.strokeRect(camCx - bw * 0.5, bannerY - bh * 0.5, bw, bh);
+
+        ctx.shadowBlur = 0;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = '900 17px "Courier New", monospace';
+        ctx.fillStyle = '#ffd700';
+        ctx.fillText('¡5 RONDAS COMPLETADAS! SALA DE PREPARACIÓN', camCx, bannerY - 10);
+        ctx.font = '900 12px "Courier New", monospace';
+        ctx.fillStyle = '#00f0ff';
+        ctx.fillText('COMPRA POCIONES EN LA TIENDA Y ACÉRCATE AL BAILARÍN PARA PELEAR', camCx, bannerY + 11);
         ctx.restore();
     }
 
@@ -1949,6 +2406,11 @@ class Game {
             // 3. Pilares de cobertura/destructibles
             for (const pillar of this.pillars) pillar.draw(ctx);
 
+            // 3.5. Sala de Preparación Pre-Jefe (Tienda de Pociones y Muñeco Azul Bailarín)
+            if (this.preBossPrepare && !this.boss) {
+                this.drawPreBossRoom(ctx);
+            }
+
             // 4. Enemigos
             for (const enemy of this.enemies) enemy.draw(ctx, this.player);
 
@@ -1965,8 +2427,8 @@ class Game {
             // 7. Proyectiles
             for (const proj of this.projectiles) proj.draw(ctx);
 
-            // 7.5. Interludio entre rondas (Silueta bailando Fortnite)
-            if (this.waveIntermission && this.waveCooldown > 0) {
+            // 7.5. Interludio entre rondas 1 a 4 (Silueta bailando Fortnite con cuenta regresiva de 10s)
+            if (this.waveIntermission && !this.preBossPrepare && this.waveCooldown > 0) {
                 this.drawFortniteInterlude(ctx);
             }
         }
@@ -2208,6 +2670,41 @@ class Game {
         ctx.fillStyle = dashReady ? '#00f5d4' : '#94a3b8';
         ctx.fillText('DASH', db.x, db.y + (isMobile ? 13 : 18));
         ctx.restore();
+
+        // 3.5. 3 Círculos Táctiles de Pociones justo al lado de DASH (Verde=Vida, Naranja=Furia, Azul=Velocidad)
+        const potBtns = this.touchControls.buttons.potions;
+        if (potBtns) {
+            const pots = (this.player && this.player.potions) ? this.player.potions : { heal: 0, fury: 0, speed: 0 };
+            for (const pType of ['heal', 'fury', 'speed']) {
+                const pb = potBtns[pType];
+                const count = pots[pType] || 0;
+                ctx.save();
+                ctx.globalAlpha = count > 0 ? 0.96 : 0.36;
+                ctx.beginPath();
+                ctx.arc(pb.x, pb.y, pb.r, 0, Math.PI * 2);
+                ctx.fillStyle = pb.down ? 'rgba(255, 255, 255, 0.28)' : 'rgba(15, 23, 42, 0.85)';
+                ctx.fill();
+                ctx.lineWidth = isMobile ? 1.8 : 2.2;
+                ctx.strokeStyle = count > 0 ? pb.color : '#475569';
+                if (count > 0) {
+                    ctx.shadowBlur = 10;
+                    ctx.shadowColor = pb.color;
+                }
+                ctx.stroke();
+                ctx.shadowBlur = 0;
+
+                // Icono del frasco de pócima del color correspondiente
+                drawPotionFlask(ctx, pb.x, pb.y - (isMobile ? 2 : 3), isMobile ? 7.2 : 9.2, pb.color);
+
+                // Número de cargas disponibles (0 a 3)
+                ctx.font = isMobile ? '900 8.5px "Courier New", monospace' : '900 10px "Courier New", monospace';
+                ctx.fillStyle = count > 0 ? '#ffffff' : '#94a3b8';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(`${count}`, pb.x, pb.y + pb.r - (isMobile ? 4.5 : 5.5));
+                ctx.restore();
+            }
+        }
 
         // 4. Botón Principal de Ataque / Fuego Continuo (radio: 35px en móvil, 45px en desktop)
         const ab = this.touchControls.buttons.attack;

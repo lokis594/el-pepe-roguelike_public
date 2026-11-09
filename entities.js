@@ -240,14 +240,108 @@ class Pillar {
     }
 }
 
+// Helpers visuales reutilizables para Bolsa de Oro y Frascos de Poción
+function drawGoldBagIcon(ctx, x, y, r = 10) {
+    ctx.save();
+    ctx.translate(x, y);
+    // Moño superior de la bolsita
+    ctx.fillStyle = '#eab308';
+    ctx.strokeStyle = '#451a03';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.45, -r * 0.65);
+    ctx.lineTo(-r * 0.65, -r * 1.15);
+    ctx.lineTo(0, -r * 0.92);
+    ctx.lineTo(r * 0.65, -r * 1.15);
+    ctx.lineTo(r * 0.45, -r * 0.65);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+
+    // Cuerpo redondo dorado (#ffd700) con borde oscuro
+    ctx.fillStyle = '#ffd700';
+    ctx.strokeStyle = '#451a03';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(0, r * 0.1, r * 0.85, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Cuerda atada en el cuello de la bolsa
+    ctx.strokeStyle = '#92400e';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(-r * 0.48, -r * 0.58);
+    ctx.lineTo(r * 0.48, -r * 0.58);
+    ctx.stroke();
+
+    // Brillo especular
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+    ctx.beginPath();
+    ctx.arc(-r * 0.28, -r * 0.15, r * 0.22, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Símbolo '$' en el centro
+    ctx.fillStyle = '#451a03';
+    ctx.font = `900 ${Math.max(8, Math.round(r * 1.05))}px "Courier New", monospace`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('$', 0, r * 0.16);
+    ctx.restore();
+}
+
+function drawPotionFlask(ctx, x, y, r = 10, color = '#4ade80') {
+    ctx.save();
+    ctx.translate(x, y);
+    // Corcho superior
+    ctx.fillStyle = '#a16207';
+    ctx.strokeStyle = '#0f172a';
+    ctx.lineWidth = 1.2;
+    ctx.fillRect(-r * 0.24, -r * 1.05, r * 0.48, r * 0.28);
+    ctx.strokeRect(-r * 0.24, -r * 1.05, r * 0.48, r * 0.28);
+
+    // Cuello de cristal
+    ctx.fillStyle = 'rgba(226, 232, 240, 0.35)';
+    ctx.strokeStyle = '#cbd5e1';
+    ctx.lineWidth = 1.4;
+    ctx.fillRect(-r * 0.30, -r * 0.77, r * 0.60, r * 0.36);
+    ctx.strokeRect(-r * 0.30, -r * 0.77, r * 0.60, r * 0.36);
+
+    // Bulbo del frasco (cristal + líquido brillante)
+    ctx.fillStyle = 'rgba(15, 23, 42, 0.75)';
+    ctx.strokeStyle = '#e2e8f0';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.arc(0, r * 0.18, r * 0.78, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Líquido interior coloreado
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(0, r * 0.22, r * 0.62, 0.08 * Math.PI, 0.92 * Math.PI, false);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(0, r * 0.22, r * 0.60, r * 0.56, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Reflejo de cristal
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.65)';
+    ctx.beginPath();
+    ctx.arc(-r * 0.26, -r * 0.02, r * 0.18, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+}
+
 class PickupOrb {
     constructor(x, y, type) {
         this.x = x;
         this.y = y;
-        this.radius = 11;
-        this.type = type; // 'HEAL' | 'FURY' | 'HASTE'
-        this.time = 0;
-        this.life = 12.0;
+        this.type = (type || 'HEAL').toUpperCase(); // 'GOLD' | 'HEAL' | 'FURY' | 'HASTE'
+        this.radius = this.type === 'GOLD' ? 12 : 11;
+        this.time = Math.random() * Math.PI * 2;
+        this.life = this.type === 'GOLD' ? 28.0 : 12.0;
         this.dead = false;
     }
 
@@ -260,10 +354,11 @@ class PickupOrb {
         }
 
         // Atracción magnética hacia el jugador cuando está cerca
+        const pullRadius = this.type === 'GOLD' ? 150 : 130;
         const d = MathUtils.dist(this.x, this.y, player.x, player.y);
-        if (d < 130) {
+        if (d < pullRadius) {
             const angle = Math.atan2(player.y - this.y, player.x - this.x);
-            const pullSpeed = (1 - d / 130) * 320;
+            const pullSpeed = (1 - d / pullRadius) * 340;
             this.x += Math.cos(angle) * pullSpeed * dt;
             this.y += Math.sin(angle) * pullSpeed * dt;
         }
@@ -275,6 +370,13 @@ class PickupOrb {
     }
 
     applyEffect(player, game) {
+        if (this.type === 'GOLD') {
+            player.gold = (player.gold || 0) + 1;
+            game.floatingTexts.push(new FloatingText(player.x, player.y - 22, '+1 ORO', '#ffd700', 16, true));
+            game.spawnParticles(this.x, this.y, 12, '#ffd700', 135, true);
+            soundManager.playGoldPickup();
+            return;
+        }
         if (this.type === 'HEAL') {
             const healAmt = 25;
             player.hp = Math.min(player.maxHp, player.hp + healAmt);
@@ -297,14 +399,22 @@ class PickupOrb {
         const bob = Math.sin(this.time * 6) * 4;
         ctx.translate(this.x, this.y + bob);
 
-        let color = '#4ade80';
-        if (this.type === 'FURY') color = '#fbbf24';
-        if (this.type === 'HASTE') color = '#38bdf8';
-
         // Parpadeo al estar por desaparecer
         if (this.life < 2.5 && Math.floor(this.life * 10) % 2 === 0) {
             ctx.globalAlpha = 0.35;
         }
+
+        if (this.type === 'GOLD') {
+            ctx.shadowBlur = 14;
+            ctx.shadowColor = '#ffd700';
+            drawGoldBagIcon(ctx, 0, 0, 11);
+            ctx.restore();
+            return;
+        }
+
+        let color = '#4ade80';
+        if (this.type === 'FURY') color = '#fbbf24';
+        if (this.type === 'HASTE') color = '#38bdf8';
 
         ctx.shadowBlur = 15;
         ctx.shadowColor = color;
@@ -320,6 +430,8 @@ class PickupOrb {
         ctx.restore();
     }
 }
+
+const ItemPickup = PickupOrb;
 
 class GunPickup {
     constructor(x, y) {

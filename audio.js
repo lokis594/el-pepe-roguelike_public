@@ -130,6 +130,32 @@ class SoundManager {
         } catch(e) {}
     }
 
+    // Moneda / Bolsa de Oro: Tintineo metálico corto y brillante
+    playGoldPickup() {
+        if (!this.ctx) return;
+        const dest = this.getMasterNode();
+        if (!dest) return;
+        try {
+            const now = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'triangle';
+            osc.frequency.setValueAtTime(987.77, now);        // Si5
+            osc.frequency.setValueAtTime(1318.51, now + 0.045); // Mi6
+            gain.gain.setValueAtTime(0.24, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.16);
+            osc.connect(gain);
+            gain.connect(dest);
+            osc.start(now);
+            osc.stop(now + 0.17);
+        } catch(e) {}
+    }
+
+    // Beber Poción: Burbujeo / acorde cristalino ascendente
+    playPotionUse() {
+        this.playTone('sine', [[392, 784], [587.33, 1174.66]], 0.18, 0.26, 0.22, 0.23);
+    }
+
     // Ataques de El Pepe Maestro: Rugido/alarma grave al embestir
     playBossRoar() { this.playTone('sawtooth', [[80, 35]], 0.45, 0.38, 0.45, 0.46, true); }
 
