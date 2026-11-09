@@ -11,9 +11,14 @@ class Player extends Entity {
 
         // Inventario de armas (Espada y Pistola)
         this.hasGun = false;
-        this.currentWeapon = 'SWORD'; // 'SWORD' | 'GUN'
-        this.gunCooldown = 0.20;
+        this.currentWeapon = 'SWORD'; // 'SWORD' | 'GUN' | 'RIFLE'
+        this.gunCooldown = 0.20 * 1.07; // Cadencia reducida un 7%
         this.gunCooldownTimer = 0;
+        this.pistolAmmo = 16;
+        this.pistolMaxAmmo = 16;
+        this.isReloadingPistol = false;
+        this.pistolReloadTimer = 0;
+        this.pistolReloadDuration = 0.5;
 
         // Dash y Esquiva con I-Frames
         this.dashCooldown = 1.05;
@@ -58,11 +63,40 @@ class Player extends Entity {
         this.hasRifle = false;
         this.rifleCooldown = 0.11; // ~9 disparos/s
         this.rifleCooldownTimer = 0;
+        this.rifleAmmo = 30;
+        this.rifleMaxAmmo = 30;
+        this.isReloadingRifle = false;
+        this.rifleReloadTimer = 0;
+        this.rifleReloadDuration = 0.8;
         this.rifleRecoil = 0;
         this.muzzleFlash = 0;
         this.dmgMult = 1;
         this.moveSpeedMult = 1;
         this.powered = false;
+    }
+
+    get hasPistol() {
+        return this.hasGun;
+    }
+
+    set hasPistol(val) {
+        this.hasGun = !!val;
+    }
+
+    startPistolReload(game) {
+        if (!this.hasGun || this.isReloadingPistol || this.pistolAmmo >= this.pistolMaxAmmo) return false;
+        this.isReloadingPistol = true;
+        this.pistolReloadTimer = this.pistolReloadDuration;
+        if (game && game.updateHUD) game.updateHUD();
+        return true;
+    }
+
+    startRifleReload(game) {
+        if (!this.hasRifle || this.isReloadingRifle || this.rifleAmmo >= this.rifleMaxAmmo) return false;
+        this.isReloadingRifle = true;
+        this.rifleReloadTimer = this.rifleReloadDuration;
+        if (game && game.updateHUD) game.updateHUD();
+        return true;
     }
 
     get damageMultiplier() {
@@ -179,8 +213,18 @@ class Player extends Entity {
 
     startAttack(game) {
         if (this.currentWeapon === 'GUN') {
+            if (this.isReloadingPistol) return;
+            if (this.pistolAmmo <= 0) {
+                this.startPistolReload(game);
+                return;
+            }
             if (this.gunCooldownTimer > 0) return;
             this.gunCooldownTimer = this.gunCooldown;
+            this.pistolAmmo = Math.max(0, this.pistolAmmo - 1);
+            if (this.pistolAmmo <= 0) {
+                this.isReloadingPistol = true;
+                this.pistolReloadTimer = this.pistolReloadDuration;
+            }
 
             // Retroceso visual y físico
             this.kbVx -= Math.cos(this.aimAngle) * 80;
@@ -192,7 +236,7 @@ class Player extends Entity {
             const bx = this.x + Math.cos(this.aimAngle) * spawnDist;
             const by = this.y + Math.sin(this.aimAngle) * spawnDist;
             const isCrit = Math.random() < 0.22;
-            const dmg = Math.round(20 * this.damageMultiplier * (isCrit ? 1.6 : 1.0));
+            const dmg = Math.round(18 * this.damageMultiplier * (isCrit ? 1.6 : 1.0));
 
             game.projectiles.push(new Projectile(
                 bx, by,
@@ -208,8 +252,18 @@ class Player extends Entity {
         }
 
         if (this.currentWeapon === 'RIFLE') {
+            if (this.isReloadingRifle) return;
+            if (this.rifleAmmo <= 0) {
+                this.startRifleReload(game);
+                return;
+            }
             if (this.rifleCooldownTimer > 0) return;
             this.rifleCooldownTimer = this.rifleCooldown;
+            this.rifleAmmo = Math.max(0, this.rifleAmmo - 1);
+            if (this.rifleAmmo <= 0) {
+                this.isReloadingRifle = true;
+                this.rifleReloadTimer = this.rifleReloadDuration;
+            }
 
             // Retroceso visual y ligera dispersión angular
             this.rifleRecoil = 1;
@@ -277,7 +331,31 @@ class Player extends Entity {
         if (this.dashCooldownTimer > 0) this.dashCooldownTimer = Math.max(0, this.dashCooldownTimer - dt);
         if (this.attackCooldownTimer > 0) this.attackCooldownTimer = Math.max(0, this.attackCooldownTimer - dt);
         if (this.gunCooldownTimer > 0) this.gunCooldownTimer = Math.max(0, this.gunCooldownTimer - dt);
+        if (this.isReloadingPistol) {
+            this.pistolReloadTimer -= dt;
+            if (this.pistolReloadTimer <= 0) {
+                this.pistolReloadTimer = 0;
+                this.isReloadingPistol = false;
+                this.pistolAmmo = this.pistolMaxAmmo;
+                soundManager.playRifleReload();
+                if (game && game.floatingTexts) {
+                    game.floatingTexts.push(new FloatingText(this.x, this.y - 30, '¡PISTOLA RECARGADA (16/16)!', '#38bdf8', 14));
+                }
+            }
+        }
         if (this.rifleCooldownTimer > 0) this.rifleCooldownTimer = Math.max(0, this.rifleCooldownTimer - dt);
+        if (this.isReloadingRifle) {
+            this.rifleReloadTimer -= dt;
+            if (this.rifleReloadTimer <= 0) {
+                this.rifleReloadTimer = 0;
+                this.isReloadingRifle = false;
+                this.rifleAmmo = this.rifleMaxAmmo;
+                soundManager.playRifleReload();
+                if (game && game.floatingTexts) {
+                    game.floatingTexts.push(new FloatingText(this.x, this.y - 30, '¡RIFLE RECARGADO (30/30)!', '#fbbf24', 14));
+                }
+            }
+        }
         if (this.muzzleFlash > 0) this.muzzleFlash -= dt;
         this.rifleRecoil = Math.max(0, this.rifleRecoil - dt * 12);
 
@@ -809,5 +887,37 @@ class Player extends Entity {
         ctx.textAlign = 'center';
         ctx.textBaseline = 'bottom';
         ctx.fillText(`${this.hp}/${this.maxHp}`, this.x, barY - 3);
+
+        // 6. Indicador visual de Recarga (Pistola 0.5s / Rifle de Asalto 0.8s) sobre el jugador
+        const showRifleRel = this.isReloadingRifle && (this.currentWeapon === 'RIFLE' || !this.isReloadingPistol);
+        const showPistolRel = this.isReloadingPistol && !showRifleRel;
+        if (showRifleRel || showPistolRel) {
+            const relW = 54;
+            const relH = 5;
+            const relX = this.x - relW / 2;
+            const relY = barY - 19;
+            const relProgress = showRifleRel
+                ? MathUtils.clamp(1 - (this.rifleReloadTimer / (this.rifleReloadDuration || 0.8)), 0, 1)
+                : MathUtils.clamp(1 - (this.pistolReloadTimer / (this.pistolReloadDuration || 0.5)), 0, 1);
+            const relColor = showRifleRel ? '#fbbf24' : '#38bdf8';
+            const textColor = showRifleRel ? '#fde047' : '#7dd3fc';
+
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+            ctx.strokeStyle = relColor;
+            ctx.lineWidth = 1.2;
+            ctx.beginPath();
+            ctx.rect(relX, relY, relW, relH);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.fillStyle = relColor;
+            ctx.fillRect(relX, relY, relW * relProgress, relH);
+
+            ctx.font = '900 8.5px "Courier New", monospace';
+            ctx.fillStyle = textColor;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom';
+            ctx.fillText('RECARGANDO...', this.x, relY - 2);
+        }
     }
 }

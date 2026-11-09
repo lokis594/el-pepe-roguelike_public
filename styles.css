@@ -38,6 +38,9 @@ canvas { display: block; background-color: #0b0e14; cursor: crosshair; margin: 0
 .menu-view { display: flex; flex-direction: column; align-items: center; justify-content: center; width: 100%; }
 #menu-main-view { gap: 16px; }
 #menu-main-view .btn-action { width: 290px; max-width: 90vw; }
+#btn-continue { border-color: #fbbf24; color: #fbbf24; box-shadow: 0 0 15px rgba(251, 191, 36, 0.25); }
+#btn-continue:hover:not(:disabled) { background: #fbbf24; color: #060709; box-shadow: 0 0 30px rgba(251, 191, 36, 0.85); }
+#btn-continue:disabled, #btn-continue.btn-locked { opacity: 0.45 !important; cursor: not-allowed !important; filter: grayscale(1) !important; border-color: #475569 !important; color: #64748b !important; background: rgba(15, 23, 42, 0.45) !important; box-shadow: none !important; transform: none !important; }
 .btn-back { border-color: #64748b !important; color: #cbd5e1 !important; padding: 10px 32px !important; font-size: 15px !important; box-shadow: 0 0 10px rgba(100, 116, 139, 0.2) !important; }
 .btn-back:hover { background: #475569 !important; color: #ffffff !important; border-color: #94a3b8 !important; box-shadow: 0 0 20px rgba(148, 163, 184, 0.5) !important; }
 .options-box { width: 100%; max-width: 480px; box-sizing: border-box; }
@@ -181,3 +184,32 @@ input[type="range"]#slider-volume::-moz-range-thumb, input[type="range"]#slider-
 /* Etiqueta de versión (esquina inferior derecha) */
 #version-tag { position: fixed; bottom: 10px; right: 14px; z-index: 9999; pointer-events: none; user-select: none; -webkit-user-select: none; font-family: monospace; font-size: 14px; font-weight: bold; color: #ffee00; text-shadow: 1px 1px 2px rgba(0,0,0,0.9); opacity: 0.95; }
 #version-tag.in-game { color: rgba(180, 190, 200, 0.38); text-shadow: none; font-size: 12px; font-weight: normal; opacity: 1; }
+
+/* Botón fijo de Notas del Parche (esquina inferior izquierda en Menú Principal) */
+.btn-patch-notes { position: fixed; bottom: 12px; left: 16px; z-index: 9999; background: rgba(15, 23, 42, 0.92); color: #00f5d4; border: 1.5px solid #00f5d4; border-radius: 5px; padding: 7px 14px; font-family: 'Courier New', Courier, monospace; font-size: 12px; font-weight: 900; letter-spacing: 1px; cursor: pointer; box-shadow: 0 0 14px rgba(0, 245, 212, 0.3); transition: all 0.18s; touch-action: manipulation; }
+.btn-patch-notes:hover { background: #00f5d4; color: #060709; box-shadow: 0 0 22px rgba(0, 245, 212, 0.8); transform: scale(1.04); }
+.btn-patch-notes:active { transform: scale(0.96); }
+
+/* Modal de Advertencia de Nueva Partida */
+.confirm-warning-box { background: rgba(18, 8, 12, 0.96); border: 2px solid #ef4444; border-radius: 8px; padding: 24px 28px; max-width: 480px; width: 92vw; box-shadow: 0 0 35px rgba(239, 68, 68, 0.45), inset 0 0 20px rgba(0,0,0,0.7); text-align: center; }
+.confirm-warning-title { font-size: 20px; font-weight: 900; color: #ef4444; letter-spacing: 2px; margin-bottom: 12px; text-shadow: 0 0 12px rgba(239, 68, 68, 0.7); }
+.confirm-warning-text { font-size: 14px; color: #f8fafc; line-height: 1.55; margin-bottom: 22px; font-weight: bold; }
+.confirm-warning-actions { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+
+/* Ventana Modal Desplazable de Notas del Parche */
+.patch-notes-box { background: rgba(10, 15, 28, 0.96); border: 2px solid #00f5d4; border-radius: 8px; padding: 20px 24px; max-width: 650px; width: 94vw; max-height: 82dvh; overflow-y: auto; display: flex; flex-direction: column; align-items: center; box-shadow: 0 0 35px rgba(0, 245, 212, 0.3), inset 0 0 22px rgba(0,0,0,0.65); text-align: left; }
+.patch-notes-header { font-size: 18px; font-weight: 900; color: #00f5d4; letter-spacing: 1.5px; margin-bottom: 14px; text-align: center; border-bottom: 1px solid #1e293b; padding-bottom: 8px; width: 100%; text-shadow: 0 0 10px rgba(0, 245, 212, 0.5); }
+.patch-notes-scroll { width: 100%; overflow-y: auto; max-height: 62dvh; padding-right: 6px; }
+.patch-version-block { background: rgba(15, 23, 42, 0.85); border: 1px solid #334155; border-left: 3px solid #fbbf24; border-radius: 5px; padding: 12px 16px; margin-bottom: 12px; }
+.patch-version-title { font-size: 14px; font-weight: 900; color: #fbbf24; margin-bottom: 6px; letter-spacing: 1px; }
+.patch-list { margin-left: 18px; font-size: 12.5px; color: #e2e8f0; line-height: 1.5; }
+.patch-list li { margin-bottom: 5px; }
+@media (max-height: 540px), (max-width: 640px) {
+    .btn-patch-notes { bottom: 8px; left: 10px; padding: 5px 10px; font-size: 10px; }
+    .patch-notes-box { padding: 12px 14px; max-height: 88dvh; }
+    .patch-notes-header { font-size: 14px; margin-bottom: 8px; }
+    .patch-list { font-size: 11px; }
+    .confirm-warning-box { padding: 16px 18px; }
+    .confirm-warning-title { font-size: 16px; }
+    .confirm-warning-text { font-size: 12px; margin-bottom: 14px; }
+}

@@ -11,6 +11,8 @@ class Game {
         this._state = v;
         const tag = document.getElementById('version-tag');
         if (tag) tag.classList.toggle('in-game', v !== 'MENU');
+        const patchBtn = document.getElementById('btn-patch-notes');
+        if (patchBtn) patchBtn.classList.toggle('hidden', v !== 'MENU');
     }
 
     get isMobileView() {
@@ -295,7 +297,107 @@ class Game {
         }
     }
 
+    saveProgress() {
+        try {
+            const p = this.player;
+            if (!p) return;
+            const data = {
+                savedLevel: 2,
+                gold: p.gold || 0,
+                potions: p.potions ? {
+                    heal: p.potions.heal || 0,
+                    fury: p.potions.fury || 0,
+                    speed: p.potions.speed || 0
+                } : { heal: 0, fury: 0, speed: 0 },
+                hasPistol: !!(p.hasGun || p.hasPistol),
+                hasRifle: true
+            };
+            localStorage.setItem('pepe_roguelike_save', JSON.stringify(data));
+        } catch (e) {}
+        this.updateContinueButtonUI();
+    }
+
+    getSavedProgress() {
+        try {
+            const raw = localStorage.getItem('pepe_roguelike_save');
+            if (!raw) return null;
+            const parsed = JSON.parse(raw);
+            if (parsed && parsed.savedLevel === 2) return parsed;
+        } catch (e) {}
+        return null;
+    }
+
+    updateContinueButtonUI() {
+        const btn = document.getElementById('btn-continue');
+        if (!btn) return;
+        const save = this.getSavedProgress();
+        const hasSave = !!save;
+        btn.disabled = !hasSave;
+        btn.classList.toggle('btn-locked', !hasSave);
+        btn.textContent = hasSave ? 'CONTINUAR PARTIDA' : '🔒 CONTINUAR PARTIDA';
+    }
+
+    handleStartButtonClick() {
+        if (this.getSavedProgress()) {
+            const modal = document.getElementById('newgame-confirm-modal');
+            if (modal) modal.classList.remove('hidden');
+        } else {
+            this.startNewRun();
+        }
+    }
+
+    confirmNewGameFromZero() {
+        try {
+            localStorage.removeItem('pepe_roguelike_save');
+        } catch (e) {}
+        this.updateContinueButtonUI();
+        this.closeNewGameConfirmModal();
+        this.startNewRun();
+    }
+
+    closeNewGameConfirmModal() {
+        const modal = document.getElementById('newgame-confirm-modal');
+        if (modal) modal.classList.add('hidden');
+    }
+
+    openPatchNotesModal() {
+        if (this.state !== 'MENU') return;
+        const modal = document.getElementById('patch-notes-modal');
+        if (modal) modal.classList.remove('hidden');
+    }
+
+    closePatchNotesModal() {
+        const modal = document.getElementById('patch-notes-modal');
+        if (modal) modal.classList.add('hidden');
+    }
+
+    continueSavedGame() {
+        const save = this.getSavedProgress();
+        if (!save) return;
+        this.level = 2;
+        this.initArenaEnvironment();
+        const cx = this.arena.x + this.arena.w * 0.5;
+        const cy = this.arena.y + this.arena.h * 0.5;
+        this.player = new Player(cx, cy);
+        this.player.gold = typeof save.gold === 'number' ? save.gold : 0;
+        if (save.potions && typeof save.potions === 'object') {
+            this.player.potions = {
+                heal: Math.min(3, Math.max(0, save.potions.heal || 0)),
+                fury: Math.min(3, Math.max(0, save.potions.fury || 0)),
+                speed: Math.min(3, Math.max(0, save.potions.speed || 0))
+            };
+        }
+        this.player.hasGun = !!save.hasPistol;
+        this.player.hasPistol = !!save.hasPistol;
+        this.player.hasRifle = true;
+        this.player.currentWeapon = 'RIFLE';
+        this.resetGame(2);
+    }
+
     quitToMainMenu() {
+        if (this.player && ((this.level === 1 && this.state === 'VICTORY') || (this.level === 2 && !this.player.dead))) {
+            this.saveProgress();
+        }
         this.closeShop();
         this.setPaused(false);
         this.runId++; // Invalida cualquier temporizador o callback pendiente
@@ -328,6 +430,7 @@ class Game {
                 this.showMenuView('main');
             }
         }
+        this.updateContinueButtonUI();
     }
 
     resizeCanvas() {
@@ -477,13 +580,31 @@ class Game {
                 return;
             }
 
-            // Reintentar
-            if (e.code === 'KeyR' && !e.repeat && (this.state === 'GAMEOVER' || this.state === 'VICTORY')) {
-                this.startNewRun();
+            // Reintentar o Recargar Pistola / Rifle de Asalto manualmente con R
+            if (e.code === 'KeyR' && !e.repeat) {
+                if (this.state === 'GAMEOVER' || this.state === 'VICTORY') {
+                    this.startNewRun();
+                } else if (!this.isPaused && !this.isShopOpen && (this.state === 'PLAYING' || this.state === 'BOSS_INTRO') && this.player && !this.player.dead) {
+                    if (this.player.currentWeapon === 'GUN') {
+                        this.player.startPistolReload(this);
+                    } else if (this.player.currentWeapon === 'RIFLE') {
+                        this.player.startRifleReload(this);
+                    }
+                }
             }
 
-            // Pausa (Escape), cerrar tienda o volver al Menú Principal
+            // Pausa (Escape), cerrar tienda/modales o volver al Menú Principal
             if (e.code === 'Escape') {
+                const patchModal = document.getElementById('patch-notes-modal');
+                if (patchModal && !patchModal.classList.contains('hidden')) {
+                    this.closePatchNotesModal();
+                    return;
+                }
+                const confirmModal = document.getElementById('newgame-confirm-modal');
+                if (confirmModal && !confirmModal.classList.contains('hidden')) {
+                    this.closeNewGameConfirmModal();
+                    return;
+                }
                 if (this.isShopOpen) {
                     this.closeShop();
                     return;
@@ -876,6 +997,7 @@ class Game {
             const el = $(id);
             if (!el) return;
             const handler = (e) => {
+                if (el.disabled || el.classList.contains('btn-locked')) return;
                 soundManager.init();
                 if (e.cancelable) e.preventDefault();
                 el.blur(); // evita que ESPACIO/R reactiven el botón por accidente
@@ -886,9 +1008,16 @@ class Game {
         };
 
         const uiActions = {
-            'btn-start': () => this.startNewRun(),
+            'btn-start': () => this.handleStartButtonClick(),
+            'btn-confirm-newgame': () => this.confirmNewGameFromZero(),
+            'btn-cancel-newgame': () => this.closeNewGameConfirmModal(),
+            'btn-patch-notes': () => this.openPatchNotesModal(),
+            'btn-close-patch-notes': () => this.closePatchNotesModal(),
+            'btn-continue': () => this.continueSavedGame(),
             'btn-retry': () => this.startNewRun(),
+            'btn-gameover-menu': () => this.quitToMainMenu(),
             'btn-play-again': () => this.startNewRun(),
+            'btn-victory-menu': () => this.quitToMainMenu(),
             'btn-next-level': () => this.goToLevel2(),
             'btn-controls': () => this.showMenuView('controls'),
             'btn-options': () => this.showMenuView('options'),
@@ -910,6 +1039,7 @@ class Game {
             'pot-slot-speed': () => { if (!this.isPaused && this.player) this.player.usePotion('speed', this); }
         };
         for (const id in uiActions) bindUIButton(id, uiActions[id]);
+        this.updateContinueButtonUI();
 
         // Control de Volumen General Sincronizado (Menú Principal y Pausa)
         const sliderVolume = $('slider-volume');
@@ -1287,7 +1417,13 @@ class Game {
         p.attackTimer = 0;
         p.attackCooldownTimer = 0;
         p.gunCooldownTimer = 0;
+        p.pistolAmmo = p.pistolMaxAmmo || 16;
+        p.isReloadingPistol = false;
+        p.pistolReloadTimer = 0;
         p.rifleCooldownTimer = 0;
+        p.rifleAmmo = p.rifleMaxAmmo || 30;
+        p.isReloadingRifle = false;
+        p.rifleReloadTimer = 0;
         p.muzzleFlash = 0;
         p.rifleRecoil = 0;
         p.damageBoostTimer = 0;
@@ -1348,6 +1484,7 @@ class Game {
     goToLevel2() {
         if (this.state !== 'VICTORY' || this.level !== 1) return;
         this.resetGame(2);
+        this.saveProgress();
     }
 
     // Power-up permanente del jugador al iniciar el Nivel 2 + desbloqueo del Rifle de Asalto
@@ -1355,9 +1492,9 @@ class Game {
         const p = this.player;
         if (!p.powered) {
             p.powered = true;
-            p.maxHp = Math.round(p.maxHp * 1.5); // +50% vida máxima
-            p.dmgMult = 1.35;                    // +35% daño base en todas las armas
-            p.moveSpeedMult = 1.15;              // +15% velocidad de movimiento
+            p.maxHp = Math.round(100 * 1.15); // +15% sobre la vida base del Nivel 1 (115 HP)
+            p.dmgMult = 1.35;                 // +35% daño base en todas las armas
+            p.moveSpeedMult = 1.15;           // +15% velocidad de movimiento
         }
         if (!p.hasRifle) {
             p.hasRifle = true;
@@ -1370,7 +1507,7 @@ class Game {
         this.ui.victoryTitle.textContent = isL1 ? '¡VICTORIA ÉPICA!' : '¡MAZMORRA CONQUISTADA!';
         this.ui.victorySubtitle.textContent = isL1
             ? 'EL PEPE MAESTRO HA SIDO DERROTADO'
-            : 'EL PEPE MAESTRO (NIVEL 2) HA CAÍDO';
+            : 'RISÍN PEPÍN - EL SEÑOR DE LA RISA HA CAÍDO';
         this.ui.btnNextLevel.style.display = isL1 ? 'inline-block' : 'none';
     }
 
@@ -1408,19 +1545,19 @@ class Game {
 
         for (let i = 0; i < chaserCount; i++) {
             const pt = spawnPointAwayFromPlayer();
-            this.enemies.push(new Enemy(pt.x, pt.y, 'CHASER', hpWave));
+            this.enemies.push(new Enemy(pt.x, pt.y, 'CHASER', hpWave, this.level));
             this.spawnParticles(pt.x, pt.y, 10, '#f43f5e', 110, true);
         }
 
         for (let i = 0; i < shooterCount; i++) {
             const pt = spawnPointAwayFromPlayer();
-            this.enemies.push(new Enemy(pt.x, pt.y, 'SHOOTER', hpWave));
+            this.enemies.push(new Enemy(pt.x, pt.y, 'SHOOTER', hpWave, this.level));
             this.spawnParticles(pt.x, pt.y, 10, '#a855f7', 110, true);
         }
 
         for (let i = 0; i < tankCount; i++) {
             const pt = spawnPointAwayFromPlayer();
-            this.enemies.push(new Enemy(pt.x, pt.y, 'TANK', hpWave));
+            this.enemies.push(new Enemy(pt.x, pt.y, 'TANK', hpWave, this.level));
             this.spawnParticles(pt.x, pt.y, 16, '#f97316', 140, true);
         }
 
@@ -1585,11 +1722,19 @@ class Game {
         this.addScreenShake(12, 2.4);
         this.projectiles = [];
 
-        // Instanciar a El Pepe Maestro en la parte superior central
+        // Instanciar a El Pepe Maestro (Nivel 1) o a Risín Pepín - El Señor de la Risa (Nivel 2)
         this.boss = new Boss(this.arena.x + this.arena.w * 0.5, this.arena.y + 130, this.level);
-        this.spawnParticles(this.boss.x, this.boss.y, 50, '#fbbf24', 260, true);
+        this.spawnParticles(this.boss.x, this.boss.y, 50, this.level === 2 ? '#ff0055' : '#fbbf24', 260, true);
+        if (this.level === 2 && soundManager.playRisinLaugh) {
+            soundManager.playRisinLaugh();
+        }
 
         this.ui.bossHud.style.display = 'block';
+        if (this.ui.bossTitle) {
+            this.ui.bossTitle.textContent = this.level === 2
+                ? 'RISÍN PEPÍN - EL SEÑOR DE LA RISA'
+                : 'EL PEPE MAESTRO - SEÑOR DE LA MAZMORRA';
+        }
         this.ui.waveCounter.textContent = 'JEFE FINAL';
         this.ui.waveCounter.style.color = '#ef4444';
     }
@@ -1600,10 +1745,15 @@ class Game {
         this.spawnParticles(boss.x, boss.y, 60, '#ef4444', 280, true);
         this.projectiles = [];
 
+        if (this.level === 1) {
+            this.saveProgress();
+        }
+
         const runId = this.runId;
         setTimeout(() => {
             if (runId !== this.runId || this.state === 'GAMEOVER') return; // ignorar si se reinició la partida
             this.state = 'VICTORY';
+            if (this.level === 1) this.saveProgress();
             this.configureVictoryScreen();
             this.ui.victoryStats.textContent = `Esbirros Abatidos: ${this.enemiesKilledCount} | Salud Restante: ${this.player.hp}/${this.player.maxHp}`;
             this.ui.victoryScreen.classList.remove('hidden');
@@ -1802,6 +1952,9 @@ class Game {
             const showBar = this.preBossPrepare && this.state === 'PLAYING' && !this.isShopOpen && !this.isPaused;
             this.ui.prebossBar.classList.toggle('hidden', !showBar);
             if (showBar && this.ui.btnSummonBoss) {
+                this.ui.btnSummonBoss.textContent = this.level === 2
+                    ? '[E / TOCAR AQUÍ]: ¡IR A POR RISÍN PEPÍN!'
+                    : '[E / TOCAR AQUÍ]: ¡IR A POR EL PEPE!';
                 this.ui.btnSummonBoss.classList.toggle('hidden', !this.isNearDancer());
             }
         }
@@ -1825,10 +1978,18 @@ class Game {
         // Indicador de Arma en el HUD
         if (this.ui.weaponName) {
             if (this.player.currentWeapon === 'RIFLE') {
-                this.ui.weaponName.textContent = '[3] RIFLE DE ASALTO';
+                if (this.player.isReloadingRifle) {
+                    this.ui.weaponName.textContent = '[3] RIFLE (RECARGANDO...)';
+                } else {
+                    this.ui.weaponName.textContent = `[3] RIFLE (${this.player.rifleAmmo}/${this.player.rifleMaxAmmo})`;
+                }
                 this.ui.weaponName.style.color = '#fbbf24';
             } else if (this.player.currentWeapon === 'GUN') {
-                this.ui.weaponName.textContent = '[2] PISTOLA';
+                if (this.player.isReloadingPistol) {
+                    this.ui.weaponName.textContent = '[2] PISTOLA (RECARGANDO...)';
+                } else {
+                    this.ui.weaponName.textContent = `[2] PISTOLA (${this.player.pistolAmmo}/${this.player.pistolMaxAmmo})`;
+                }
                 this.ui.weaponName.style.color = '#38bdf8';
             } else {
                 this.ui.weaponName.textContent = '[1] ESPADA';
@@ -1842,10 +2003,16 @@ class Game {
                     const border = active ? '1px solid #00f5d4' : '1px solid #334155';
                     return `<span style="display:inline-block;margin-right:4px;padding:1px 5px;border:${border};color:${color};opacity:${owned ? 1 : 0.5};text-shadow:2px 2px 4px rgba(0,0,0,0.95);background:rgba(15,23,42,0.45);border-radius:2px;">${n}:${label}${owned ? '' : ' 🔒'}</span>`;
                 };
+                const pistolLabel = this.player.hasGun
+                    ? (this.player.isReloadingPistol ? 'PISTOLA (RECARGANDO...)' : `PISTOLA (${this.player.pistolAmmo}/${this.player.pistolMaxAmmo})`)
+                    : 'PISTOLA';
+                const rifleLabel = this.player.hasRifle
+                    ? (this.player.isReloadingRifle ? 'RIFLE (RECARGANDO...)' : `RIFLE (${this.player.rifleAmmo}/${this.player.rifleMaxAmmo})`)
+                    : 'RIFLE';
                 this.ui.weaponHint.innerHTML =
                     slot(1, 'ESPADA', true, 'SWORD') +
-                    slot(2, 'PISTOLA', this.player.hasGun, 'GUN') +
-                    slot(3, 'RIFLE', this.player.hasRifle, 'RIFLE') + ' [Q]';
+                    slot(2, pistolLabel, this.player.hasGun, 'GUN') +
+                    slot(3, rifleLabel, this.player.hasRifle, 'RIFLE') + ' [Q]';
             }
         }
 
@@ -1862,10 +2029,10 @@ class Game {
             const bossPct = MathUtils.clamp((this.boss.hp / this.boss.maxHp) * 100, 0, 100);
             this.ui.bossHpBar.style.width = `${bossPct}%`;
             if (this.boss.enraged) {
-                this.ui.bossTitle.textContent = this.level === 2 ? 'EL PEPE MAESTRO (NIVEL 2) - ¡ENFURECIDO!' : 'EL PEPE MAESTRO - ¡ENFURECIDO!';
+                this.ui.bossTitle.textContent = this.level === 2 ? 'RISÍN PEPÍN - ¡RISA DESCONTROLADA!' : 'EL PEPE MAESTRO - ¡ENFURECIDO!';
                 this.ui.bossTitle.style.color = '#fbbf24';
             } else {
-                this.ui.bossTitle.textContent = this.level === 2 ? 'EL PEPE MAESTRO (NIVEL 2) - SEÑOR SUPREMO' : 'EL PEPE MAESTRO - SEÑOR DE LA MAZMORRA';
+                this.ui.bossTitle.textContent = this.level === 2 ? 'RISÍN PEPÍN - EL SEÑOR DE LA RISA' : 'EL PEPE MAESTRO - SEÑOR DE LA MAZMORRA';
                 this.ui.bossTitle.style.color = '#fca5a5';
             }
         }

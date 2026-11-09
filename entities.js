@@ -559,7 +559,7 @@ class GunPickup {
 }
 
 class Projectile {
-    constructor(x, y, vx, vy, radius, damage, color, isEnemy = true) {
+    constructor(x, y, vx, vy, radius, damage, color, isEnemy = true, wordText = null) {
         this.x = x;
         this.y = y;
         this.vx = vx;
@@ -568,6 +568,10 @@ class Projectile {
         this.damage = damage;
         this.color = color;
         this.isEnemy = isEnemy;
+        this.wordText = wordText;
+        this.angle = Math.atan2(vy, vx);
+        this.spin = 0;
+        this.spinSpeed = wordText ? (Math.random() < 0.5 ? 1 : -1) * MathUtils.randRange(1.8, 3.6) : 0;
         this.dead = false;
         this.life = 5.5;
     }
@@ -575,6 +579,7 @@ class Projectile {
     update(dt, game) {
         this.x += this.vx * dt;
         this.y += this.vy * dt;
+        this.spin += this.spinSpeed * dt;
         this.life -= dt;
 
         // Colisión con límites de la arena
@@ -596,9 +601,12 @@ class Projectile {
             }
         }
 
-        // Colisión con el jugador (si es proyectil enemigo)
+        // Colisión con el jugador (si es proyectil enemigo, respetando Dash / I-Frames)
         if (this.isEnemy && !game.player.dead) {
             if (MathUtils.circleCollide(this.x, this.y, this.radius, game.player.x, game.player.y, game.player.radius)) {
+                if (game.player.isDashing || game.player.invulnTimer > 0) {
+                    return;
+                }
                 const hit = game.player.takeDamage(this.damage, this.x, this.y, 200, game);
                 if (hit) {
                     this.dead = true;
@@ -631,6 +639,33 @@ class Projectile {
     draw(ctx) {
         ctx.save();
         ctx.translate(this.x, this.y);
+        if (this.wordText) {
+            // Proyectil Especial de Palabra Dañina ("JAJAJA", "XD", "JIJIJI", "LMAO", "AHAJAJA")
+            ctx.fillStyle = 'rgba(239, 68, 68, 0.18)';
+            ctx.strokeStyle = this.color;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.rotate(Math.sin(this.spin * 2) * 0.32);
+            ctx.shadowBlur = 14;
+            ctx.shadowColor = this.color;
+            ctx.font = '900 16px "Courier New", monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.lineWidth = 4;
+            ctx.strokeStyle = '#090d16';
+            ctx.strokeText(this.wordText, 0, 0);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(this.wordText, 0, 0);
+            ctx.fillStyle = this.color;
+            ctx.globalAlpha = 0.85;
+            ctx.fillText(this.wordText, 0, -1);
+            ctx.restore();
+            return;
+        }
         ctx.shadowBlur = 12;
         ctx.shadowColor = this.color;
         ctx.fillStyle = this.color;

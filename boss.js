@@ -1,20 +1,30 @@
 /**
  * ============================================================================
- * CLASE JEFE FINAL: "EL PEPE MAESTRO" (FSM COMPLETA Y FASE ENFURECIDA)
+ * CLASE JEFE FINAL: "EL PEPE MAESTRO" (NIVEL 1) & "RISÍN PEPÍN" (NIVEL 2)
  * ============================================================================
  */
 class Boss extends Entity {
     constructor(x, y) {
-        super(x, y, 42 * (arguments[2] === 2 ? 1.3 : 1), arguments[2] === 2 ? 1800 : 950);
-        this.level = arguments[2] === 2 ? 2 : 1;
-        this.sizeScale = this.level === 2 ? 1.3 : 1;
+        const isL2 = arguments[2] === 2;
+        const pepeBaseHp = 950;
+        const maxHp = isL2 ? Math.round(pepeBaseHp * 1.5) : pepeBaseHp; // Risín Pepín: 1.5x la vida de El Pepe
+        super(x, y, 42 * (isL2 ? 1.28 : 1), maxHp);
+        this.level = isL2 ? 2 : 1;
+        this.isRisin = isL2;
+        this.sizeScale = isL2 ? 1.28 : 1;
         this.enraged = false;
-        this.baseSpeed = 135;
+
+        // Nivel 1 (El Pepe): +5% velocidad y +5% daño. Nivel 2 (Risín Pepín): 1.5x poder base y velocidad ágil
+        this.pepeSpeedBuff = 1.05;
+        this.pepeDmgBuff = 1.05;
+        this.baseSpeed = isL2 ? (135 * 1.05 * 1.22) : (135 * this.pepeSpeedBuff);
+        this.dmgMult = isL2 ? (this.pepeDmgBuff * 1.5) : this.pepeDmgBuff;
 
         // Máquina de Estados Finitos (FSM)
         // Estados: 'IDLE' | 'CHARGE_TELEGRAPH' | 'CHARGE_DASH' | 'SPIRAL_CAST' | 'JUMP_ASCEND' | 'JUMP_AIR' | 'JUMP_SLAM'
+        // Estados exclusivos de Risín Pepín: 'WORD_BARRAGE' | 'LAUGH_LASER_TELEGRAPH' | 'LAUGH_LASER_FIRE'
         this.state = 'IDLE';
-        this.stateTimer = 1.4;
+        this.stateTimer = 1.3;
         this.attackIndex = 0;
 
         // Estado 1: Embestida Maestra
@@ -22,9 +32,16 @@ class Boss extends Entity {
         this.chargeTargetX = x;
         this.chargeTargetY = y;
 
-        // Estado 2: Espiral Arcana
+        // Estado 2: Espiral Arcana / Bombardeo de Palabras Dañinas
         this.spiralAngle = 0;
         this.spiralShotTimer = 0;
+        this.wordList = ['JAJAJA', 'XD', 'JIJIJI', 'LMAO', 'AHAJAJA'];
+        this.wordBurstCount = 0;
+
+        // Estado Láser de Risa Descontrolada ("Risa Láser")
+        this.laserAngle = 0;
+        this.laserLength = 1050;
+        this.laserDamageTick = 0;
 
         // Estado 3: Salto Sísmico
         this.jumpHeight = 0; // Elevación fuera de la pantalla
@@ -37,7 +54,7 @@ class Boss extends Entity {
     }
 
     getSpeedMultiplier() {
-        return this.enraged ? 1.35 : 1.0; // +35% velocidad en fase enfurecida
+        return (this.enraged ? 1.35 : 1.0) * (this.level === 1 ? this.pepeSpeedBuff : 1.12);
     }
 
     takeDamage(amount, sourceX, sourceY, kbForce, isCrit, game) {
@@ -69,13 +86,28 @@ class Boss extends Entity {
     }
 
     transitionToNextAttack(game) {
-        const patterns = ['CHARGE_TELEGRAPH', 'SPIRAL_CAST', 'JUMP_ASCEND'];
+        const patterns = this.isRisin
+            ? ['WORD_BARRAGE', 'LAUGH_LASER_TELEGRAPH', 'JUMP_ASCEND', 'CHARGE_TELEGRAPH']
+            : ['CHARGE_TELEGRAPH', 'SPIRAL_CAST', 'JUMP_ASCEND'];
         const chosen = patterns[this.attackIndex % patterns.length];
         this.attackIndex++;
 
         const speedMult = this.getSpeedMultiplier();
 
-        if (chosen === 'CHARGE_TELEGRAPH') {
+        if (chosen === 'WORD_BARRAGE') {
+            this.state = 'WORD_BARRAGE';
+            this.stateTimer = this.enraged ? 3.2 : 2.8;
+            this.spiralShotTimer = 0.1;
+            this.wordBurstCount = 0;
+            if (soundManager.playRisinLaugh) soundManager.playRisinLaugh();
+        } else if (chosen === 'LAUGH_LASER_TELEGRAPH') {
+            this.state = 'LAUGH_LASER_TELEGRAPH';
+            this.stateTimer = 0.7; // Telegraph de 0.7s con textos "JAJAJAJA!" vibrando
+            this.vx = 0;
+            this.vy = 0;
+            this.laserAngle = Math.atan2(game.player.y - this.y, game.player.x - this.x);
+            if (soundManager.playRisinLaugh) soundManager.playRisinLaugh();
+        } else if (chosen === 'CHARGE_TELEGRAPH') {
             this.state = 'CHARGE_TELEGRAPH';
             this.stateTimer = 0.6; // Exactamente 0.6 segundos de advertencia (telegraph)
             this.vx = 0;
@@ -117,8 +149,8 @@ class Boss extends Entity {
                         sw.waveHitPlayer = true;
                         sw.hitPlayer = true;
                     } else {
-                        // 4. Reducción de Daño en un 40% (22 -> 13)
-                        const waveDamage = this.enraged ? 15 : 13;
+                        const baseWaveDmg = this.enraged ? 15 : 13;
+                        const waveDamage = Math.round(baseWaveDmg * this.dmgMult);
                         const hit = player.takeDamage(waveDamage, sw.x, sw.y, 280, game);
                         if (hit) {
                             // 3. Golpe Único por Salto
@@ -210,9 +242,10 @@ class Boss extends Entity {
                 this.spiralShotTimer -= dt;
 
                 if (this.spiralShotTimer <= 0) {
-                    this.spiralShotTimer = this.enraged ? 0.11 : 0.16;
+                    this.spiralShotTimer = (this.enraged ? 0.11 : 0.16) / (this.level === 1 ? this.pepeSpeedBuff : 1);
                     const arms = this.enraged ? 6 : 4;
-                    const projSpeed = this.enraged ? 265 : 215;
+                    const projSpeed = (this.enraged ? 265 : 215) * (this.level === 1 ? this.pepeSpeedBuff : 1);
+                    const projDmg = Math.round(14 * this.dmgMult);
                     for (let i = 0; i < arms; i++) {
                         const a = this.spiralAngle + (i * Math.PI * 2) / arms;
                         game.projectiles.push(new Projectile(
@@ -220,7 +253,7 @@ class Boss extends Entity {
                             this.y + Math.sin(a) * 30,
                             Math.cos(a) * projSpeed,
                             Math.sin(a) * projSpeed,
-                            8, 14, this.enraged ? '#fbbf24' : '#f43f5e', true
+                            8, projDmg, this.enraged ? '#fbbf24' : '#f43f5e', true
                         ));
                     }
                 }
@@ -228,6 +261,112 @@ class Boss extends Entity {
                 if (this.stateTimer <= 0) {
                     this.state = 'IDLE';
                     this.stateTimer = this.enraged ? 0.8 : 1.3;
+                }
+                break;
+            }
+
+            case 'WORD_BARRAGE': {
+                // Risín Pepín: Se mueve ágilmente y lanza ráfagas/abanicos de palabras dañinas ("JAJAJA", "XD", "JIJIJI", "LMAO", "AHAJAJA")
+                const toPlayer = Math.atan2(player.y - this.y, player.x - this.x);
+                const orbitAngle = toPlayer + Math.sin(this.animTime * 2.5) * 0.9;
+                this.vx = Math.cos(orbitAngle) * (this.baseSpeed * 0.85);
+                this.vy = Math.sin(orbitAngle) * (this.baseSpeed * 0.85);
+
+                this.spiralShotTimer -= dt;
+                if (this.spiralShotTimer <= 0) {
+                    this.spiralShotTimer = this.enraged ? 0.34 : 0.44;
+                    this.wordBurstCount++;
+                    const count = this.enraged ? 5 : 3;
+                    const spreadArc = this.enraged ? 0.95 : 0.65;
+                    const wordSpeed = this.enraged ? 340 : 295;
+                    const wordDmg = Math.round(13 * this.dmgMult);
+                    const palette = ['#ff0055', '#00f5d4', '#fbbf24', '#a855f7', '#39ff14'];
+
+                    for (let i = 0; i < count; i++) {
+                        const frac = count === 1 ? 0 : (i / (count - 1)) - 0.5;
+                        const ang = toPlayer + frac * spreadArc;
+                        const word = this.wordList[(this.wordBurstCount + i) % this.wordList.length];
+                        const col = palette[(this.wordBurstCount + i) % palette.length];
+                        game.projectiles.push(new Projectile(
+                            this.x + Math.cos(ang) * 42,
+                            this.y + Math.sin(ang) * 42,
+                            Math.cos(ang) * wordSpeed,
+                            Math.sin(ang) * wordSpeed,
+                            18, wordDmg, col, true, word
+                        ));
+                    }
+                    this.triggerSquash(1.18, 0.84);
+                }
+
+                if (this.stateTimer <= 0) {
+                    this.state = 'IDLE';
+                    this.stateTimer = this.enraged ? 0.65 : 1.0;
+                }
+                break;
+            }
+
+            case 'LAUGH_LASER_TELEGRAPH': {
+                // Se detiene y apunta con línea de advertencia de 0.7s + textos "JAJAJAJA!" vibrando
+                this.vx = 0;
+                this.vy = 0;
+                if (this.stateTimer > 0.22) {
+                    const targetAng = Math.atan2(player.y - this.y, player.x - this.x);
+                    const diff = MathUtils.normalizeAngle(targetAng - this.laserAngle);
+                    this.laserAngle += diff * Math.min(1, dt * 6);
+                }
+
+                if (this.stateTimer <= 0) {
+                    this.state = 'LAUGH_LASER_FIRE';
+                    this.stateTimer = this.enraged ? 1.85 : 1.55;
+                    this.laserDamageTick = 0;
+                    this.triggerSquash(1.32, 0.72);
+                    if (soundManager.playLaserBeam) soundManager.playLaserBeam();
+                    game.addScreenShake(10, 0.35);
+                }
+                break;
+            }
+
+            case 'LAUGH_LASER_FIRE': {
+                // Dispara el potente Rayo Láser continuo de Risa desde su boca barriendo hacia el jugador
+                this.vx = 0;
+                this.vy = 0;
+                const targetAng = Math.atan2(player.y - this.y, player.x - this.x);
+                const diff = MathUtils.normalizeAngle(targetAng - this.laserAngle);
+                const maxTurnRate = this.enraged ? 1.15 : 0.88; // rad/s de barrido
+                this.laserAngle += MathUtils.clamp(diff, -maxTurnRate * dt, maxTurnRate * dt);
+
+                if (this.laserDamageTick > 0) this.laserDamageTick -= dt;
+
+                // Origen del láser en la boca de Risín Pepín
+                const mouthX = this.x + Math.cos(this.laserAngle) * 26;
+                const mouthY = (this.y - 10) + Math.sin(this.laserAngle) * 26;
+                const endX = mouthX + Math.cos(this.laserAngle) * this.laserLength;
+                const endY = mouthY + Math.sin(this.laserAngle) * this.laserLength;
+
+                // Colisión del rayo láser contra el jugador (respetando I-Frames del Dash)
+                if (!player.dead && this.laserDamageTick <= 0) {
+                    const dx = endX - mouthX;
+                    const dy = endY - mouthY;
+                    const lenSq = dx * dx + dy * dy;
+                    const tProj = MathUtils.clamp(((player.x - mouthX) * dx + (player.y - mouthY) * dy) / lenSq, 0, 1);
+                    const closestX = mouthX + tProj * dx;
+                    const closestY = mouthY + tProj * dy;
+                    const distToBeam = MathUtils.dist(player.x, player.y, closestX, closestY);
+                    const beamHalfWidth = 17;
+
+                    if (distToBeam <= beamHalfWidth + player.radius) {
+                        const isPlayerInvulnerable = player.isDashing || player.invulnTimer > 0 || player.invulnerable;
+                        if (!isPlayerInvulnerable) {
+                            const laserDmg = Math.round(15 * this.dmgMult);
+                            player.takeDamage(laserDmg, closestX, closestY, 260, game);
+                            this.laserDamageTick = 0.32;
+                        }
+                    }
+                }
+
+                if (this.stateTimer <= 0) {
+                    this.state = 'IDLE';
+                    this.stateTimer = this.enraged ? 0.75 : 1.15;
                 }
                 break;
             }
@@ -281,11 +420,11 @@ class Boss extends Entity {
                     if (dFall < this.radius + player.radius) {
                         const isPlayerInvulnerable = player.isDashing || player.invulnTimer > 0 || player.invulnerable;
                         if (!isPlayerInvulnerable && !player.dead) {
-                            player.takeDamage(16, this.x, this.y, 340, game);
+                            player.takeDamage(Math.round(16 * this.dmgMult), this.x, this.y, 340, game);
                         }
                     }
 
-                    // Generar onda expansiva circular (velocidad moderada y daño reducido en 40%)
+                    // Generar onda expansiva circular (anillo hueco esquivable)
                     this.shockwaves.push({
                         x: this.x,
                         y: this.y,
@@ -310,7 +449,7 @@ class Boss extends Entity {
             if (MathUtils.circleCollide(this.x, this.y, this.radius, player.x, player.y, player.radius)) {
                 const isPlayerInvulnerable = player.isDashing || player.invulnTimer > 0 || player.invulnerable;
                 if (!isPlayerInvulnerable) {
-                    player.takeDamage(20, this.x, this.y, 350, game);
+                    player.takeDamage(Math.round(20 * this.dmgMult), this.x, this.y, 350, game);
                 }
             }
         }
@@ -335,6 +474,92 @@ class Boss extends Entity {
             ctx.moveTo(0, 0);
             ctx.lineTo(length, 0);
             ctx.stroke();
+            ctx.restore();
+        }
+
+        // 1.B Dibujar Telegraph y Rayo del Láser de Risa Descontrolada ("Risa Láser" de Risín Pepín)
+        if (this.state === 'LAUGH_LASER_TELEGRAPH') {
+            ctx.save();
+            const mouthX = this.x + Math.cos(this.laserAngle) * 26;
+            const mouthY = (this.y - 10) + Math.sin(this.laserAngle) * 26;
+            const pulse = 0.55 + Math.sin(this.animTime * 40) * 0.35;
+
+            ctx.translate(mouthX, mouthY);
+            ctx.rotate(this.laserAngle);
+
+            ctx.fillStyle = `rgba(255, 0, 85, ${pulse * 0.22})`;
+            ctx.fillRect(0, -18, this.laserLength, 36);
+
+            ctx.strokeStyle = `rgba(0, 245, 212, ${pulse})`;
+            ctx.lineWidth = 3;
+            ctx.setLineDash([12, 8]);
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(this.laserLength, 0);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.restore();
+
+            // Textos "JAJAJAJA!" vibrando alrededor de Risín Pepín durante la carga
+            ctx.save();
+            ctx.font = '900 16px "Courier New", monospace';
+            ctx.textAlign = 'center';
+            ctx.fillStyle = '#ff0055';
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 3;
+            const jx = this.x + (Math.random() - 0.5) * 14;
+            const jy = this.y - this.radius - 34 + (Math.random() - 0.5) * 10;
+            ctx.strokeText('¡JAJAJAJAJA!', jx, jy);
+            ctx.fillText('¡JAJAJAJAJA!', jx, jy);
+            ctx.restore();
+        } else if (this.state === 'LAUGH_LASER_FIRE') {
+            ctx.save();
+            const mouthX = this.x + Math.cos(this.laserAngle) * 26;
+            const mouthY = (this.y - 10) + Math.sin(this.laserAngle) * 26;
+            ctx.translate(mouthX, mouthY);
+            ctx.rotate(this.laserAngle);
+
+            // Haz exterior carmesí/eléctrico
+            const flicker = Math.sin(this.animTime * 60) * 3;
+            ctx.shadowBlur = 24;
+            ctx.shadowColor = '#ff0055';
+            ctx.fillStyle = 'rgba(255, 0, 85, 0.55)';
+            ctx.fillRect(0, -19 - flicker * 0.5, this.laserLength, 38 + flicker);
+
+            // Haz intermedio cian eléctrico
+            ctx.fillStyle = 'rgba(0, 245, 212, 0.78)';
+            ctx.fillRect(0, -11, this.laserLength, 22);
+
+            // Núcleo blanco incandescente
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, -5, this.laserLength, 10);
+
+            // Ondas sónicas y sílabas "JA" viajando a toda velocidad por el haz de luz
+            const scrollOffset = (this.animTime * 680) % 90;
+            ctx.font = '900 15px "Courier New", monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            for (let dist = scrollOffset; dist < this.laserLength - 40; dist += 90) {
+                // Anillo sónico
+                ctx.strokeStyle = '#fde047';
+                ctx.lineWidth = 2.2;
+                ctx.beginPath();
+                ctx.ellipse(dist, 0, 7, 22, 0, 0, Math.PI * 2);
+                ctx.stroke();
+
+                // Letra "JA" viajando por el rayo
+                ctx.fillStyle = '#fde047';
+                ctx.strokeStyle = '#090d16';
+                ctx.lineWidth = 3;
+                ctx.strokeText('JA', dist + 42, (Math.sin(dist * 0.05 + this.animTime * 20) * 5));
+                ctx.fillText('JA', dist + 42, (Math.sin(dist * 0.05 + this.animTime * 20) * 5));
+            }
+
+            // Orbe de energía en la boca
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(0, 0, 18 + Math.sin(this.animTime * 45) * 3, 0, Math.PI * 2);
+            ctx.fill();
             ctx.restore();
         }
 
@@ -380,7 +605,9 @@ class Boss extends Entity {
         ctx.scale(this.scaleX, this.scaleY);
 
         const isMoving = Math.hypot(this.vx, this.vy) > 10;
-        const auraColor = this.enraged ? '#ef4444' : '#fbbf24';
+        const auraColor = this.isRisin
+            ? (this.enraged ? '#00f5d4' : '#ff0055')
+            : (this.enraged ? '#ef4444' : '#fbbf24');
 
         // Aura brillante pulsante del Jefe
         ctx.save();
@@ -392,6 +619,15 @@ class Boss extends Entity {
         ctx.beginPath();
         ctx.arc(0, 4, auraRadius, 0, Math.PI * 2);
         ctx.stroke();
+        if (this.isRisin) {
+            ctx.strokeStyle = this.enraged ? '#ff0055' : '#00f5d4';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([8, 6]);
+            ctx.beginPath();
+            ctx.arc(0, 4, auraRadius + 6, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.setLineDash([]);
+        }
         ctx.restore();
 
         // 1. SISTEMA DE EXTREMIDADES: PIERNAS (x2)
@@ -531,13 +767,14 @@ class Boss extends Entity {
         ctx.stroke();
         ctx.restore();
 
-        // 2. CABEZA DE EL PEPE MAESTRO (HÍBRIDO FOTO + FALLBACK PROCEDURAL)
+        // 2. CABEZA DEL JEFE (EL PEPE MAESTRO EN NIVEL 1 / RISÍN PEPÍN EN NIVEL 2)
         const headX = 0;
         const headY = -18;
-        const headR = 27;
+        const headR = this.isRisin ? 30 : 27;
+        const activeBossImg = this.isRisin ? (typeof risinImg !== 'undefined' ? risinImg : pepeImg) : pepeImg;
 
         ctx.save();
-        if (pepeImg.complete && pepeImg.naturalWidth > 0) {
+        if (activeBossImg && activeBossImg.complete && activeBossImg.naturalWidth > 0) {
             // FOTO RECORTADA EN CÍRCULO PERFECTO
             ctx.save();
             ctx.beginPath();
@@ -545,7 +782,7 @@ class Boss extends Entity {
             ctx.closePath();
             ctx.clip();
 
-            ctx.drawImage(pepeImg, headX - headR * 1.15, headY - headR * 1.15, headR * 2.3, headR * 2.3);
+            ctx.drawImage(activeBossImg, headX - headR * 1.15, headY - headR * 1.15, headR * 2.3, headR * 2.3);
 
             if (this.hitFlash > 0) {
                 ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
@@ -553,7 +790,7 @@ class Boss extends Entity {
             }
             ctx.restore();
 
-            // Borde de aura amenazante (dorada en Fase 1, roja ardiente en Fase Enfurecida)
+            // Borde de aura amenazante (dorada/roja en Pepe, carmesí/eléctrica en Risín Pepín)
             ctx.shadowBlur = this.enraged ? 24 : 16;
             ctx.shadowColor = auraColor;
             ctx.strokeStyle = auraColor;
@@ -750,13 +987,13 @@ class Boss extends Entity {
         ctx.stroke();
         ctx.restore();
 
-        // Texto del contador ("20" o "99+") en rojo (#c92a2a)
-        const labelText = this.enraged ? '99+' : '20';
-        ctx.fillStyle = '#c92a2a';
-        ctx.font = '900 13px "Courier New", monospace';
+        // Texto del contador ("20" / "99+" para Pepe, "JAJA" / "XD!" para Risín Pepín)
+        const labelText = this.isRisin ? (this.enraged ? 'XD!' : 'JAJA') : (this.enraged ? '99+' : '20');
+        ctx.fillStyle = this.isRisin ? '#ff0055' : '#c92a2a';
+        ctx.font = '900 12px "Courier New", monospace';
         ctx.textAlign = 'left';
         ctx.textBaseline = 'middle';
-        ctx.fillText(labelText, bx + 21, by + 12);
+        ctx.fillText(labelText, bx + 20, by + 12);
 
         ctx.restore();
 

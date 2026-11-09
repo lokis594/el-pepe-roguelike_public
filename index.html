@@ -58,6 +58,7 @@
         <div class="subtitle">LA GUARIDA DE EL PEPE MAESTRO</div>
         <div id="menu-main-view" class="menu-view">
             <button id="btn-start" class="btn-action">ENTRAR A LA GUARIDA</button>
+            <button id="btn-continue" class="btn-action btn-locked" disabled>🔒 CONTINUAR PARTIDA</button>
             <button id="btn-controls" class="btn-action">CONTROLES</button>
             <button id="btn-options" class="btn-action">OPCIONES</button>
         </div>
@@ -95,7 +96,10 @@
         <div class="title-main danger-title">HAS CAÍDO</div>
         <div class="subtitle">TU ALMA SE DESVANECE EN LA MAZMORRA</div>
         <div id="gameover-stats" style="color: #94a3b8; margin-bottom: 24px; font-size: 14px;"></div>
-        <button id="btn-retry" class="btn-action" style="border-color:#ef4444; color:#ef4444;">REINTENTAR (R)</button>
+        <div style="display:flex; gap:16px; justify-content:center; flex-wrap:wrap;">
+            <button id="btn-retry" class="btn-action" style="border-color:#ef4444; color:#ef4444;">REINTENTAR (R)</button>
+            <button id="btn-gameover-menu" class="btn-action btn-back">VOLVER AL MENÚ PRINCIPAL</button>
+        </div>
         <div class="hint-prompt">Presiona [ R ] para reintentar desde la Oleada 1</div>
     </div>
     <div id="victory-screen" class="overlay-screen hidden">
@@ -107,7 +111,11 @@
                 <span id="victory-stats" style="color: #00f5d4; font-weight: bold;"></span>
             </p>
         </div>
-        <div style="display:flex; gap:16px; justify-content:center; flex-wrap:wrap;"><button id="btn-next-level" class="btn-action" style="border-color:#00f5d4; color:#00f5d4;">IR AL NIVEL 2 (ESPACIO)</button><button id="btn-play-again" class="btn-action" style="border-color:#fbbf24; color:#fbbf24;">JUGAR DE NUEVO (NIVEL 1) (R)</button></div>
+        <div style="display:flex; gap:16px; justify-content:center; flex-wrap:wrap;">
+            <button id="btn-next-level" class="btn-action" style="border-color:#00f5d4; color:#00f5d4;">IR AL NIVEL 2 (ESPACIO)</button>
+            <button id="btn-play-again" class="btn-action" style="border-color:#fbbf24; color:#fbbf24;">JUGAR DE NUEVO (NIVEL 1) (R)</button>
+            <button id="btn-victory-menu" class="btn-action btn-back">VOLVER AL MENÚ PRINCIPAL</button>
+        </div>
     </div>
     <div id="pause-screen" class="overlay-screen hidden">
         <button id="btn-pause-hud-toggle" class="btn-pause-corner" title="Reanudar Partida">[ || ]</button>
@@ -179,8 +187,60 @@
         </div>
         <button id="btn-close-shop" class="btn-action btn-back" style="margin-top: 14px;">CERRAR TIENDA</button>
     </div>
+    <div id="newgame-confirm-modal" class="overlay-screen hidden" style="z-index: 80;">
+        <div class="confirm-warning-box">
+            <div class="confirm-warning-title">⚠️ ADVERTENCIA DE PROGRESO</div>
+            <p class="confirm-warning-text">¿Estás seguro? Si empiezas una nueva partida se borrará tu progreso anterior.</p>
+            <div class="confirm-warning-actions">
+                <button id="btn-confirm-newgame" class="btn-action btn-danger">SÍ, EMPEZAR DE CERO</button>
+                <button id="btn-cancel-newgame" class="btn-action btn-back">CANCELAR</button>
+            </div>
+        </div>
+    </div>
+    <div id="patch-notes-modal" class="overlay-screen hidden" style="z-index: 85;">
+        <div class="patch-notes-box">
+            <div class="patch-notes-header">📋 NOTAS DEL PARCHE - HISTORIAL DE VERSIONES</div>
+            <div class="patch-notes-scroll">
+                <div class="patch-version-block">
+                    <div class="patch-version-title">Versión 1.3.0 (Actual)</div>
+                    <ul class="patch-list">
+                        <li><b>Nuevo Jefe de Nivel 2 (Risín Pepín):</b> 1.5x más poderoso que El Pepe Maestro, ataca lanzando ráfagas de palabras dañinas (<i>"JAJAJA"</i>, <i>"XD"</i>, <i>"JIJIJI"</i>, <i>"LMAO"</i>, <i>"AHAJAJA"</i>), dispara su potente <b>Láser de Risa Descontrolada</b> y ejecuta saltos con onda sísmica esquivable.</li>
+                        <li><b>Nivel 2 más desafiante:</b> Todos los enemigos del Nivel 2 tienen +15% velocidad de movimiento y +10% daño. Los Jokers disparan +7% más rápido con proyectiles +7% más veloces.</li>
+                        <li><b>Salto Sísmico de Ete Sech:</b> Los Golems/Tanques (<code>etesech.png</code>) realizan un salto pesado periódico con advertencia en el suelo y onda expansiva de anillo hueco esquivable con Dash.</li>
+                        <li><b>Balance de Pistola y Jugador:</b> La Pistola ahora inflige 18 de daño base, cadencia ajustada (-7%) y cuenta con cargador de 16 balas (recarga de 0.5s). Al pasar al Nivel 2 tu Vida Máxima sube un +15% (115 HP).</li>
+                        <li><b>Buff a El Pepe Maestro (Nivel 1):</b> +5% velocidad y +5% daño en todos sus ataques.</li>
+                        <li><b>Protección de Partida Guardada y Notas del Parche:</b> Aviso de confirmación antes de sobrescribir tu partida guardada y nuevo panel de historial de parches en el menú.</li>
+                    </ul>
+                </div>
+                <div class="patch-version-block">
+                    <div class="patch-version-title">Versión 1.2.0</div>
+                    <ul class="patch-list">
+                        <li><b>Skin Ete Sech:</b> Los enemigos Tanque/Coloso del Nivel 2 lucen la skin <code>etesech.png</code> con aura morada acorazada.</li>
+                        <li><b>Cargador del Rifle de Asalto:</b> Sistema de munición de 30 balas con recarga automática o manual (tecla <code>R</code>) en 0.8 segundos.</li>
+                        <li><b>Guardado de Progreso:</b> Nuevo botón <i>"CONTINUAR PARTIDA"</i> en el menú principal para retomar el Nivel 2 con tu oro, armas y pociones, más botón para volver al menú en Victoria y Derrota.</li>
+                    </ul>
+                </div>
+                <div class="patch-version-block">
+                    <div class="patch-version-title">Versión 1.1.0</div>
+                    <ul class="patch-list">
+                        <li><b>Economía de Oro y 5 Oleadas:</b> 5 rondas por nivel y bolsas de oro recolectables al derrotar enemigos.</li>
+                        <li><b>Inventario de 3 Pociones:</b> Pociones de Vida (tecla 4), Furia +30% daño (tecla 5) y Velocidad +30% (tecla 6), con botones táctiles dedicados en móvil.</li>
+                        <li><b>Sala Pre-Jefe y Tienda:</b> Puesto de Tienda de Pociones y bailes de Fortnite para invocar al jefe cuando estés listo.</li>
+                    </ul>
+                </div>
+                <div class="patch-version-block">
+                    <div class="patch-version-title">Versión 1.0.0</div>
+                    <ul class="patch-list">
+                        <li><b>Lanzamiento Modular y Multiplataforma:</b> 2 niveles completos, 3 armas (Espada, Pistola y Rifle de Asalto), soporte táctil multitouch con Auto-Aim, pantalla completa, control de volumen y modo bajo rendimiento.</li>
+                    </ul>
+                </div>
+            </div>
+            <button id="btn-close-patch-notes" class="btn-action btn-back" style="margin-top: 14px;">CERRAR / ATRÁS</button>
+        </div>
+    </div>
 </div>
-<div id="version-tag">version 1.1.0</div>
+<button id="btn-patch-notes" class="btn-patch-notes">📋 NOTAS DEL PARCHE</button>
+<div id="version-tag">version 1.3.0</div>
 <script src="audio.js"></script>
 <script src="entities.js"></script>
 <script src="player.js"></script>

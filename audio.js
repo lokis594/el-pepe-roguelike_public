@@ -156,11 +156,42 @@ class SoundManager {
         this.playTone('sine', [[392, 784], [587.33, 1174.66]], 0.18, 0.26, 0.22, 0.23);
     }
 
+    // Recarga mecánica del Rifle de Asalto: Doble clic metálico rápido
+    playRifleReload() {
+        if (!this.ctx) return;
+        const dest = this.getMasterNode();
+        if (!dest) return;
+        try {
+            const now = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(280, now);
+            osc.frequency.setValueAtTime(520, now + 0.045);
+            gain.gain.setValueAtTime(0.20, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+            osc.connect(gain);
+            gain.connect(dest);
+            osc.start(now);
+            osc.stop(now + 0.13);
+        } catch(e) {}
+    }
+
     // Ataques de El Pepe Maestro: Rugido/alarma grave al embestir
     playBossRoar() { this.playTone('sawtooth', [[80, 35]], 0.45, 0.38, 0.45, 0.46, true); }
 
     // Ataques de El Pepe Maestro: Estruendo sísmico al caer del salto
     playBossSlam() { this.playTone('triangle', [[65, 18]], 0.55, 0.5, 0.55, 0.56); }
+
+    // Risín Pepín: Carcajada malévola sintetizada
+    playRisinLaugh() {
+        this.playTone('sawtooth', [[320, 580], [480, 240]], 0.28, 0.32, 0.30, 0.32);
+    }
+
+    // Risín Pepín: Disparo del Láser de Risa Descontrolada
+    playLaserBeam() {
+        this.playTone('sawtooth', [[520, 140], [780, 210]], 0.45, 0.34, 0.45, 0.46);
+    }
 }
 
 const soundManager = new SoundManager();
@@ -174,3 +205,7 @@ const rangedImg = new Image();
 rangedImg.src = 'ranged.png';
 const pepeImg = new Image();
 pepeImg.src = 'pepe.png';
+const etesechImg = new Image();
+etesechImg.src = 'etesech.png';
+const risinImg = new Image();
+risinImg.src = 'risinpepin.png';
