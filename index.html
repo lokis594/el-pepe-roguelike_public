@@ -329,13 +329,29 @@
         }
 
         /* Ajustes Responsivos para Pantallas Móviles */
+        @media (max-width: 1024px), (max-height: 700px) {
+            .hud-top-left {
+                transform: scale(0.65);
+                transform-origin: top left;
+                width: 320px;
+                padding: 12px 14px;
+            }
+            #hud {
+                padding: 10px 12px;
+            }
+            #boss-hud {
+                top: 10px;
+                transform: translateX(-50%) scale(0.75);
+                transform-origin: top center;
+                max-width: calc(100vw - 180px);
+            }
+        }
         @media (max-height: 640px), (max-width: 640px) {
             .title-main { font-size: 30px !important; margin-bottom: 4px !important; }
             .subtitle { font-size: 12px !important; margin-bottom: 12px !important; }
             .controls-box { padding: 12px 18px !important; margin-bottom: 16px !important; max-height: 48vh; overflow-y: auto; }
             .control-row { font-size: 11px !important; margin-bottom: 6px !important; }
             .btn-action { padding: 10px 24px !important; font-size: 15px !important; }
-            .hud-top-left { width: 240px !important; padding: 10px 12px !important; }
         }
     </style>
 </head>
@@ -3186,15 +3202,20 @@ class Boss extends Entity {
  * ============================================================================
  */
 class Game {
+    get isMobileView() {
+        return this.isTouchDevice || this.width < 1024 || this.height < 600;
+    }
+
     constructor() {
         this.canvas = document.getElementById('gameCanvas');
         this.ctx = this.canvas.getContext('2d');
 
-        // Dimensiones dinámicas del canvas adaptadas a ventana completa
+        // Soporte de Alta Densidad de Píxeles (Retina / HD) y Dimensiones Dinámicas
+        this.dpr = Math.max(1, window.devicePixelRatio || 1);
         this.width = window.innerWidth;
         this.height = window.innerHeight;
-        this.canvas.width = this.width;
-        this.canvas.height = this.height;
+        this.canvas.width = Math.round(this.width * this.dpr);
+        this.canvas.height = Math.round(this.height * this.dpr);
 
         // Estados: 'MENU' | 'PLAYING' | 'BOSS_INTRO' | 'VICTORY' | 'GAMEOVER'
         this.state = 'MENU';
@@ -3226,6 +3247,7 @@ class Game {
 
         // Controles táctiles móviles y soporte multitouch independiente
         this.isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+        this.cameraZoom = this.isMobileView ? 0.68 : 1.0;
         this.touchControls = {
             joystick: {
                 active: false,
@@ -3317,10 +3339,14 @@ class Game {
     }
 
     resizeCanvas() {
+        const dpr = Math.max(1, window.devicePixelRatio || 1);
+        this.dpr = dpr;
         this.width = window.innerWidth;
         this.height = window.innerHeight;
-        this.canvas.width = this.width;
-        this.canvas.height = this.height;
+        this.canvas.width = Math.round(this.width * dpr);
+        this.canvas.height = Math.round(this.height * dpr);
+
+        this.cameraZoom = this.isMobileView ? 0.68 : 1.0;
 
         this.updateControlPositions();
 
@@ -3332,37 +3358,43 @@ class Game {
     updateControlPositions() {
         const w = this.width;
         const h = this.height;
+        const isMobile = this.isMobileView;
 
-        // Joystick anclado a la esquina inferior izquierda
+        // Joystick anclado a la esquina inferior izquierda (45px base, 20px stick en móvil)
         const js = this.touchControls.joystick;
-        js.baseX = Math.max(90, Math.min(160, w * 0.16));
-        js.baseY = Math.max(120, h - 130);
+        js.radius = isMobile ? 45 : 60;
+        js.stickRadius = isMobile ? 20 : 25;
+        js.baseX = isMobile ? Math.max(65, Math.min(115, w * 0.15)) : Math.max(90, Math.min(160, w * 0.16));
+        js.baseY = isMobile ? Math.max(80, h - 85) : Math.max(120, h - 130);
         if (!js.active) {
             js.stickX = js.baseX;
             js.stickY = js.baseY;
         }
 
-        // Botones de acción anclados a la esquina inferior derecha
+        // Botones de acción anclados a la esquina inferior derecha (-35% en móvil)
         const btn = this.touchControls.buttons;
-        btn.attack.x = w - 100;
-        btn.attack.y = h - 120;
+        btn.attack.r = isMobile ? 35 : 45;
+        btn.attack.x = isMobile ? w - 75 : w - 100;
+        btn.attack.y = isMobile ? h - 75 : h - 120;
 
-        btn.dash.x = w - 210;
-        btn.dash.y = h - 90;
+        btn.dash.r = isMobile ? 25 : 32;
+        btn.dash.x = isMobile ? w - 155 : w - 210;
+        btn.dash.y = isMobile ? h - 65 : h - 90;
 
-        btn.weapon.x = w - 100;
-        btn.weapon.y = h - 230;
+        btn.weapon.r = isMobile ? 22 : 30;
+        btn.weapon.x = isMobile ? w - 75 : w - 100;
+        btn.weapon.y = isMobile ? h - 155 : h - 230;
 
         // Botones del HUD en la esquina superior derecha
-        btn.pause.x = w - 55;
-        btn.pause.y = 18;
-        btn.pause.w = 42;
-        btn.pause.h = 42;
+        btn.pause.w = isMobile ? 36 : 42;
+        btn.pause.h = isMobile ? 36 : 42;
+        btn.pause.x = isMobile ? w - 48 : w - 55;
+        btn.pause.y = isMobile ? 12 : 18;
 
-        btn.fullscreen.x = w - 105;
-        btn.fullscreen.y = 18;
-        btn.fullscreen.w = 42;
-        btn.fullscreen.h = 42;
+        btn.fullscreen.w = isMobile ? 36 : 42;
+        btn.fullscreen.h = isMobile ? 36 : 42;
+        btn.fullscreen.x = isMobile ? w - 92 : w - 105;
+        btn.fullscreen.y = isMobile ? 12 : 18;
     }
 
     toggleFullscreen() {
@@ -3399,8 +3431,8 @@ class Game {
 
     getTouchCanvasPos(touch) {
         const rect = this.canvas.getBoundingClientRect();
-        const scaleX = this.canvas.width / rect.width;
-        const scaleY = this.canvas.height / rect.height;
+        const scaleX = this.width / (rect.width || 1);
+        const scaleY = this.height / (rect.height || 1);
         return {
             x: (touch.clientX - rect.left) * scaleX,
             y: (touch.clientY - rect.top) * scaleY
@@ -3474,12 +3506,13 @@ class Game {
 
         this.canvas.addEventListener('mousemove', (e) => {
             const rect = this.canvas.getBoundingClientRect();
-            const scaleX = this.canvas.width / rect.width;
-            const scaleY = this.canvas.height / rect.height;
+            const scaleX = this.width / (rect.width || 1);
+            const scaleY = this.height / (rect.height || 1);
             this.mouse.x = (e.clientX - rect.left) * scaleX;
             this.mouse.y = (e.clientY - rect.top) * scaleY;
-            this.mouse.worldX = this.mouse.x + this.camera.x;
-            this.mouse.worldY = this.mouse.y + this.camera.y;
+            const zoom = this.cameraZoom || 1.0;
+            this.mouse.worldX = this.mouse.x / zoom + this.camera.x;
+            this.mouse.worldY = this.mouse.y / zoom + this.camera.y;
             this.mouse.active = true;
         });
 
@@ -3487,8 +3520,8 @@ class Game {
             soundManager.init();
             if (e.button === 0) {
                 const rect = this.canvas.getBoundingClientRect();
-                const scaleX = this.canvas.width / rect.width;
-                const scaleY = this.canvas.height / rect.height;
+                const scaleX = this.width / (rect.width || 1);
+                const scaleY = this.height / (rect.height || 1);
                 const clickX = (e.clientX - rect.left) * scaleX;
                 const clickY = (e.clientY - rect.top) * scaleY;
 
@@ -3528,7 +3561,11 @@ class Game {
             if (soundManager.ctx && soundManager.ctx.state === 'suspended') {
                 soundManager.ctx.resume().catch(() => {});
             }
-            this.isTouchDevice = true;
+            if (!this.isTouchDevice) {
+                this.isTouchDevice = true;
+                this.cameraZoom = this.isMobileView ? 0.68 : 1.0;
+                this.updateControlPositions();
+            }
             if (e.cancelable) e.preventDefault();
 
             for (let i = 0; i < e.changedTouches.length; i++) {
@@ -3564,8 +3601,8 @@ class Game {
                         if (!js.active) {
                             js.active = true;
                             js.touchId = t.identifier;
-                            js.baseX = Math.max(70, Math.min(this.width * 0.40, pos.x));
-                            js.baseY = Math.max(100, Math.min(this.height - 70, pos.y));
+                            js.baseX = Math.max(50, Math.min(this.width * 0.40, pos.x));
+                            js.baseY = Math.max(70, Math.min(this.height - 50, pos.y));
                             js.stickX = pos.x;
                             js.stickY = pos.y;
                             const dx = pos.x - js.baseX;
@@ -3585,7 +3622,7 @@ class Game {
                     // 2. Esquina Inferior Derecha -> Botones Táctiles de Acción
                     // Botón de Dash
                     const dashBtn = this.touchControls.buttons.dash;
-                    if (MathUtils.dist(pos.x, pos.y, dashBtn.x, dashBtn.y) <= dashBtn.r + 14) {
+                    if (MathUtils.dist(pos.x, pos.y, dashBtn.x, dashBtn.y) <= dashBtn.r + (this.isMobileView ? 10 : 14)) {
                         dashBtn.down = true;
                         dashBtn.touchId = t.identifier;
                         if (this.player && !this.player.dead) {
@@ -3596,7 +3633,7 @@ class Game {
 
                     // Botón de Cambio de Arma
                     const wepBtn = this.touchControls.buttons.weapon;
-                    if (MathUtils.dist(pos.x, pos.y, wepBtn.x, wepBtn.y) <= wepBtn.r + 14) {
+                    if (MathUtils.dist(pos.x, pos.y, wepBtn.x, wepBtn.y) <= wepBtn.r + (this.isMobileView ? 10 : 14)) {
                         wepBtn.down = true;
                         wepBtn.touchId = t.identifier;
                         if (this.player && !this.player.dead) {
@@ -3607,7 +3644,7 @@ class Game {
 
                     // Botón Principal de Ataque / Fuego Continuo
                     const atkBtn = this.touchControls.buttons.attack;
-                    if (MathUtils.dist(pos.x, pos.y, atkBtn.x, atkBtn.y) <= atkBtn.r + 20) {
+                    if (MathUtils.dist(pos.x, pos.y, atkBtn.x, atkBtn.y) <= atkBtn.r + (this.isMobileView ? 14 : 20)) {
                         atkBtn.down = true;
                         atkBtn.touchId = t.identifier;
                         atkBtn.hasDragged = false;
@@ -4503,8 +4540,11 @@ class Game {
         const { x, y, w, h } = this.arena;
 
         // 1. Dibujar el fondo abisal y el suelo de la mazmorra
+        const zoom = this.cameraZoom || 1.0;
+        const viewW = this.width / zoom;
+        const viewH = this.height / zoom;
         ctx.fillStyle = '#06070a';
-        ctx.fillRect(this.camera.x, this.camera.y, this.width, this.height);
+        ctx.fillRect(this.camera.x - 200, this.camera.y - 200, viewW + 400, viewH + 400);
 
         if (this.dungeonFloorCanvas) {
             ctx.drawImage(this.dungeonFloorCanvas, 0, 0);
@@ -4821,6 +4861,15 @@ class Game {
         const ctx = this.ctx;
         ctx.save();
 
+        // Soporte de Alta Densidad de Píxeles (Retina / HD)
+        if (this.dpr && this.dpr !== 1) {
+            ctx.scale(this.dpr, this.dpr);
+        }
+
+        // Limpiar el fondo completo de la pantalla lógica
+        ctx.fillStyle = '#06070a';
+        ctx.fillRect(0, 0, this.width, this.height);
+
         // Aplicar Screen Shake de cámara
         if (this.shakeTimer > 0 && this.shakeIntensity > 0) {
             const dx = MathUtils.randRange(-this.shakeIntensity, this.shakeIntensity);
@@ -4828,8 +4877,10 @@ class Game {
             ctx.translate(dx, dy);
         }
 
-        // 1. Nivel y Iluminación de Antorchas (espacio de mundo con cámara dinámica)
+        // 1. Nivel y Iluminación de Antorchas (espacio de mundo con cámara dinámica y zoom dinámico en móviles)
         ctx.save();
+        const zoom = this.cameraZoom || 1.0;
+        ctx.scale(zoom, zoom);
         ctx.translate(-this.camera.x, -this.camera.y);
         this.drawArenaDungeon(ctx);
 
@@ -4971,13 +5022,14 @@ class Game {
 
     drawHUDButtons(ctx) {
         ctx.save();
+        const isMobile = this.isMobileView;
 
-        // 1. Botón de Pausa en el HUD (Esquina Superior Derecha - 42x42px)
+        // 1. Botón de Pausa en el HUD (Esquina Superior Derecha)
         const pb = this.touchControls.buttons.pause;
         ctx.save();
         ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
         ctx.strokeStyle = this.isPaused ? '#ef4444' : '#00f5d4';
-        ctx.lineWidth = 2.5;
+        ctx.lineWidth = isMobile ? 2 : 2.5;
         ctx.shadowBlur = 10;
         ctx.shadowColor = this.isPaused ? '#ef4444' : '#00f5d4';
         ctx.beginPath();
@@ -4988,17 +5040,20 @@ class Game {
 
         ctx.fillStyle = this.isPaused ? '#ef4444' : '#00f5d4';
         ctx.shadowBlur = 0;
-        ctx.fillRect(pb.x + 12, pb.y + 10, 5, 22);
-        ctx.fillRect(pb.x + 25, pb.y + 10, 5, 22);
+        const pBarW = Math.max(3, Math.round(pb.w * 0.12));
+        const pBarH = Math.round(pb.h * 0.52);
+        const pBarY = pb.y + Math.round((pb.h - pBarH) * 0.5);
+        ctx.fillRect(pb.x + Math.round(pb.w * 0.28), pBarY, pBarW, pBarH);
+        ctx.fillRect(pb.x + Math.round(pb.w * 0.60), pBarY, pBarW, pBarH);
         ctx.restore();
 
-        // 2. Botón de Pantalla Completa (HUD - 42x42px junto a Pausa)
+        // 2. Botón de Pantalla Completa (HUD junto a Pausa)
         const fsb = this.touchControls.buttons.fullscreen;
         const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
         ctx.save();
         ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
         ctx.strokeStyle = isFs ? '#fbbf24' : '#00f5d4';
-        ctx.lineWidth = 2.5;
+        ctx.lineWidth = isMobile ? 2 : 2.5;
         ctx.shadowBlur = 10;
         ctx.shadowColor = isFs ? '#fbbf24' : '#00f5d4';
         ctx.beginPath();
@@ -5009,23 +5064,24 @@ class Game {
 
         ctx.shadowBlur = 0;
         ctx.strokeStyle = isFs ? '#fbbf24' : '#00f5d4';
-        ctx.lineWidth = 2.5;
+        ctx.lineWidth = isMobile ? 2 : 2.5;
         const fcx = fsb.x + fsb.w * 0.5;
         const fcy = fsb.y + fsb.h * 0.5;
-        const s = 9;
+        const s = Math.round(fsb.w * 0.22);
+        const cOff = Math.round(s * 0.55);
         ctx.beginPath();
         if (!isFs) {
             // Cuatro esquinas expandiéndose: [  ]
-            ctx.moveTo(fcx - s, fcy - s + 5); ctx.lineTo(fcx - s, fcy - s); ctx.lineTo(fcx - s + 5, fcy - s);
-            ctx.moveTo(fcx + s - 5, fcy - s); ctx.lineTo(fcx + s, fcy - s); ctx.lineTo(fcx + s, fcy - s + 5);
-            ctx.moveTo(fcx - s, fcy + s - 5); ctx.lineTo(fcx - s, fcy + s); ctx.lineTo(fcx - s + 5, fcy + s);
-            ctx.moveTo(fcx + s - 5, fcy + s); ctx.lineTo(fcx + s, fcy + s); ctx.lineTo(fcx + s, fcy + s - 5);
+            ctx.moveTo(fcx - s, fcy - s + cOff); ctx.lineTo(fcx - s, fcy - s); ctx.lineTo(fcx - s + cOff, fcy - s);
+            ctx.moveTo(fcx + s - cOff, fcy - s); ctx.lineTo(fcx + s, fcy - s); ctx.lineTo(fcx + s, fcy - s + cOff);
+            ctx.moveTo(fcx - s, fcy + s - cOff); ctx.lineTo(fcx - s, fcy + s); ctx.lineTo(fcx - s + cOff, fcy + s);
+            ctx.moveTo(fcx + s - cOff, fcy + s); ctx.lineTo(fcx + s, fcy + s); ctx.lineTo(fcx + s, fcy + s - cOff);
         } else {
             // Cuatro esquinas contrayéndose hacia adentro
-            ctx.moveTo(fcx - s + 4, fcy - s); ctx.lineTo(fcx - s + 4, fcy - s + 4); ctx.lineTo(fcx - s, fcy - s + 4);
-            ctx.moveTo(fcx + s - 4, fcy - s); ctx.lineTo(fcx + s - 4, fcy - s + 4); ctx.lineTo(fcx - s, fcy - s + 4);
-            ctx.moveTo(fcx - s + 4, fcy + s); ctx.lineTo(fcx - s + 4, fcy + s - 4); ctx.lineTo(fcx - s, fcy + s - 4);
-            ctx.moveTo(fcx + s - 4, fcy + s); ctx.lineTo(fcx + s, fcy + s - 4); ctx.lineTo(fcx + s, fcy + s - 4);
+            ctx.moveTo(fcx - s + cOff, fcy - s); ctx.lineTo(fcx - s + cOff, fcy - s + cOff); ctx.lineTo(fcx - s, fcy - s + cOff);
+            ctx.moveTo(fcx + s - cOff, fcy - s); ctx.lineTo(fcx + s, fcy - s + cOff); ctx.lineTo(fcx + s, fcy - s + cOff);
+            ctx.moveTo(fcx - s + cOff, fcy + s); ctx.lineTo(fcx - s + cOff, fcy + s - cOff); ctx.lineTo(fcx - s, fcy + s - cOff);
+            ctx.moveTo(fcx + s - cOff, fcy + s); ctx.lineTo(fcx + s, fcy + s - cOff); ctx.lineTo(fcx + s, fcy + s - cOff);
         }
         ctx.stroke();
         ctx.restore();
@@ -5035,19 +5091,20 @@ class Game {
 
     drawTouchControls(ctx) {
         ctx.save();
+        const isMobile = this.isMobileView;
 
         // 1. Joystick Virtual de Movimiento (Mitad Izquierda)
         const js = this.touchControls.joystick;
         const bx = js.baseX;
         const by = js.baseY;
 
-        // Base circular semitransparente (radio: 60px)
+        // Base circular semitransparente (radio: 45px en móvil, 60px en desktop)
         ctx.save();
         ctx.beginPath();
         ctx.arc(bx, by, js.radius, 0, Math.PI * 2);
         ctx.fillStyle = js.active ? 'rgba(15, 23, 42, 0.65)' : 'rgba(15, 23, 42, 0.40)';
         ctx.fill();
-        ctx.lineWidth = 2.5;
+        ctx.lineWidth = isMobile ? 2 : 2.5;
         ctx.strokeStyle = js.active ? '#00f5d4' : 'rgba(0, 245, 212, 0.35)';
         if (js.active) {
             ctx.shadowBlur = 14;
@@ -5059,11 +5116,12 @@ class Game {
         ctx.beginPath();
         ctx.strokeStyle = 'rgba(148, 163, 184, 0.25)';
         ctx.lineWidth = 1.5;
-        ctx.moveTo(bx - 36, by); ctx.lineTo(bx + 36, by);
-        ctx.moveTo(bx, by - 36); ctx.lineTo(bx, by + 36);
+        const gLen = Math.round(js.radius * 0.58);
+        ctx.moveTo(bx - gLen, by); ctx.lineTo(bx + gLen, by);
+        ctx.moveTo(bx, by - gLen); ctx.lineTo(bx, by + gLen);
         ctx.stroke();
 
-        // Stick interno (radio: 25px) que sigue el dedo hasta el borde
+        // Stick interno (radio: 20px en móvil, 25px en desktop) que sigue el dedo hasta el borde
         const sx = js.active ? js.stickX : bx;
         const sy = js.active ? js.stickY : by;
         ctx.beginPath();
@@ -5075,14 +5133,14 @@ class Game {
         ctx.stroke();
         ctx.restore();
 
-        // 2. Botón de Cambio de Arma (radio: 30px)
+        // 2. Botón de Cambio de Arma (radio: 22px en móvil, 30px en desktop)
         const wb = this.touchControls.buttons.weapon;
         ctx.save();
         ctx.beginPath();
         ctx.arc(wb.x, wb.y, wb.r, 0, Math.PI * 2);
         ctx.fillStyle = wb.down ? 'rgba(251, 191, 36, 0.55)' : 'rgba(15, 23, 42, 0.78)';
         ctx.fill();
-        ctx.lineWidth = 2.5;
+        ctx.lineWidth = isMobile ? 2 : 2.5;
         ctx.strokeStyle = '#fbbf24';
         ctx.shadowBlur = wb.down ? 16 : 8;
         ctx.shadowColor = '#fbbf24';
@@ -5096,14 +5154,14 @@ class Game {
             if (this.player.currentWeapon === 'GUN') wepIcon = '🔫';
             else if (this.player.currentWeapon === 'RIFLE') wepIcon = '⚡';
         }
-        ctx.font = '22px sans-serif';
-        ctx.fillText(wepIcon, wb.x, wb.y - 2);
-        ctx.font = 'bold 9px "Courier New", monospace';
+        ctx.font = isMobile ? '16px sans-serif' : '22px sans-serif';
+        ctx.fillText(wepIcon, wb.x, wb.y - (isMobile ? 1 : 2));
+        ctx.font = isMobile ? 'bold 7.5px "Courier New", monospace' : 'bold 9px "Courier New", monospace';
         ctx.fillStyle = '#fbbf24';
-        ctx.fillText('ARMA', wb.x, wb.y + 17);
+        ctx.fillText('ARMA', wb.x, wb.y + (isMobile ? 12 : 17));
         ctx.restore();
 
-        // 3. Botón de Dash (radio: 32px) con enfriamiento visual progresivo
+        // 3. Botón de Dash (radio: 25px en móvil, 32px en desktop) con enfriamiento visual progresivo
         const db = this.touchControls.buttons.dash;
         ctx.save();
         const dashCd = this.player ? this.player.dashCooldown : 1.05;
@@ -5115,7 +5173,7 @@ class Game {
         ctx.arc(db.x, db.y, db.r, 0, Math.PI * 2);
         ctx.fillStyle = db.down ? 'rgba(0, 245, 212, 0.55)' : 'rgba(15, 23, 42, 0.78)';
         ctx.fill();
-        ctx.lineWidth = 2.5;
+        ctx.lineWidth = isMobile ? 2 : 2.5;
         ctx.strokeStyle = dashReady ? '#00f5d4' : '#475569';
         if (dashReady) {
             ctx.shadowBlur = 12;
@@ -5135,7 +5193,7 @@ class Game {
 
             ctx.beginPath();
             ctx.arc(db.x, db.y, db.r, -Math.PI / 2, -Math.PI / 2 + dashPct * Math.PI * 2);
-            ctx.lineWidth = 3.5;
+            ctx.lineWidth = isMobile ? 2.5 : 3.5;
             ctx.strokeStyle = '#00f5d4';
             ctx.stroke();
             ctx.restore();
@@ -5144,14 +5202,14 @@ class Game {
         ctx.shadowBlur = 0;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.font = '24px sans-serif';
-        ctx.fillText('⚡', db.x, db.y - 2);
-        ctx.font = 'bold 9px "Courier New", monospace';
+        ctx.font = isMobile ? '17px sans-serif' : '24px sans-serif';
+        ctx.fillText('⚡', db.x, db.y - (isMobile ? 1 : 2));
+        ctx.font = isMobile ? 'bold 7.5px "Courier New", monospace' : 'bold 9px "Courier New", monospace';
         ctx.fillStyle = dashReady ? '#00f5d4' : '#94a3b8';
-        ctx.fillText('DASH', db.x, db.y + 18);
+        ctx.fillText('DASH', db.x, db.y + (isMobile ? 13 : 18));
         ctx.restore();
 
-        // 4. Botón Principal de Ataque / Fuego Continuo (radio: 45px)
+        // 4. Botón Principal de Ataque / Fuego Continuo (radio: 35px en móvil, 45px en desktop)
         const ab = this.touchControls.buttons.attack;
         ctx.save();
         const atkHeld = this.touchControls.isAttackTouchHeld;
@@ -5173,7 +5231,7 @@ class Game {
             ctx.fillStyle = 'rgba(15, 23, 42, 0.82)';
         }
         ctx.fill();
-        ctx.lineWidth = 3.5;
+        ctx.lineWidth = isMobile ? 2.5 : 3.5;
         ctx.strokeStyle = atkColor;
         ctx.shadowBlur = atkHeld ? 22 : 10;
         ctx.shadowColor = atkColor;
@@ -5181,53 +5239,57 @@ class Game {
 
         // Indicador de apuntado por arrastre (Twin-Stick) o Auto-Aim
         if (ab.down && ab.hasDragged) {
-            const dragLen = 32;
+            const dragLen = Math.round(ab.r * 0.72);
             const px = ab.x + Math.cos(ab.aimAngle) * dragLen;
             const py = ab.y + Math.sin(ab.aimAngle) * dragLen;
             ctx.beginPath();
             ctx.moveTo(ab.x, ab.y);
             ctx.lineTo(px, py);
-            ctx.lineWidth = 3.5;
+            ctx.lineWidth = isMobile ? 2.5 : 3.5;
             ctx.strokeStyle = '#ffffff';
             ctx.stroke();
 
             ctx.beginPath();
-            ctx.arc(px, py, 6, 0, Math.PI * 2);
+            ctx.arc(px, py, isMobile ? 4.5 : 6, 0, Math.PI * 2);
             ctx.fillStyle = '#ffffff';
             ctx.fill();
         } else {
             ctx.shadowBlur = 0;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
-            ctx.font = '28px sans-serif';
-            ctx.fillText('🎯', ab.x, ab.y - 4);
-            ctx.font = '900 10px "Courier New", monospace';
+            ctx.font = isMobile ? '20px sans-serif' : '28px sans-serif';
+            ctx.fillText('🎯', ab.x, ab.y - (isMobile ? 3 : 4));
+            ctx.font = isMobile ? '900 8px "Courier New", monospace' : '900 10px "Courier New", monospace';
             ctx.fillStyle = '#ffffff';
-            ctx.fillText('ATACAR', ab.x, ab.y + 20);
+            ctx.fillText('ATACAR', ab.x, ab.y + (isMobile ? 15 : 20));
         }
         ctx.restore();
 
         ctx.restore();
     }
 
-    // Cámara suave centrada en el jugador (se mueve si el mundo es mayor que la pantalla, o centra si es menor)
+    // Cámara suave centrada en el jugador con soporte de zoom dinámico en móviles
     updateCamera(dt, snap = false) {
         const p = this.player;
         let targetX = 0;
         let targetY = 0;
 
-        if (this.width >= this.worldW) {
-            targetX = (this.worldW - this.width) * 0.5;
+        const zoom = this.cameraZoom || 1.0;
+        const viewW = this.width / zoom;
+        const viewH = this.height / zoom;
+
+        if (viewW >= this.worldW) {
+            targetX = (this.worldW - viewW) * 0.5;
         } else if (p) {
-            const maxX = this.worldW - this.width;
-            targetX = MathUtils.clamp(p.x - this.width * 0.5, 0, maxX);
+            const maxX = this.worldW - viewW;
+            targetX = MathUtils.clamp(p.x - viewW * 0.5, 0, maxX);
         }
 
-        if (this.height >= this.worldH) {
-            targetY = (this.worldH - this.height) * 0.5;
+        if (viewH >= this.worldH) {
+            targetY = (this.worldH - viewH) * 0.5;
         } else if (p) {
-            const maxY = this.worldH - this.height;
-            targetY = MathUtils.clamp(p.y - this.height * 0.5, 0, maxY);
+            const maxY = this.worldH - viewH;
+            targetY = MathUtils.clamp(p.y - viewH * 0.5, 0, maxY);
         }
 
         const k = snap ? 1 : 1 - Math.exp(-7 * dt);
@@ -5236,8 +5298,9 @@ class Game {
     }
 
     syncMouseWorld() {
-        this.mouse.worldX = this.mouse.x + this.camera.x;
-        this.mouse.worldY = this.mouse.y + this.camera.y;
+        const zoom = this.cameraZoom || 1.0;
+        this.mouse.worldX = this.mouse.x / zoom + this.camera.x;
+        this.mouse.worldY = this.mouse.y / zoom + this.camera.y;
     }
 
     loop(timestamp) {
