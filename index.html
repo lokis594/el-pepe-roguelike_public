@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>EL PEPE MAESTRO - Action Roguelike 2D</title>
     <style>
         * {
@@ -10,6 +10,7 @@
             padding: 0;
             box-sizing: border-box;
             user-select: none;
+            -webkit-user-select: none;
         }
         body {
             background-color: #060709;
@@ -21,6 +22,10 @@
             align-items: center;
             height: 100vh;
             width: 100vw;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+            overscroll-behavior: none;
         }
         #game-container {
             position: relative;
@@ -28,11 +33,23 @@
             border: 2px solid #1e293b;
             border-radius: 4px;
             overflow: hidden;
+            width: min(100vw, calc(100vh * (1100 / 720)));
+            height: min(100vh, calc(100vw * (720 / 1100)));
+            max-width: 1100px;
+            max-height: 720px;
+            aspect-ratio: 1100 / 720;
         }
         canvas {
             display: block;
             background-color: #0b0e14;
             cursor: crosshair;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
+            overscroll-behavior: none;
         }
         /* HUD & UI Overlays */
         .ui-layer {
@@ -247,12 +264,18 @@
             border-radius: 4px;
             transition: all 0.2s;
             box-shadow: 0 0 15px rgba(0, 245, 212, 0.25);
+            touch-action: manipulation;
+            -webkit-tap-highlight-color: transparent;
         }
         .btn-action:hover {
             background: #00f5d4;
             color: #060709;
             box-shadow: 0 0 30px rgba(0, 245, 212, 0.8);
             transform: scale(1.04);
+        }
+        .btn-action:active {
+            transform: scale(0.96);
+            background: rgba(0, 245, 212, 0.25);
         }
         .danger-title {
             color: #ef4444;
@@ -272,9 +295,54 @@
             0%, 100% { opacity: 1; }
             50% { opacity: 0.35; }
         }
+
+        /* Aviso Sutil de Orientación en Modo Vertical (Portrait) */
+        #orientation-hint {
+            display: none;
+            position: fixed;
+            top: 12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(10, 14, 22, 0.94);
+            border: 1px solid #00f5d4;
+            color: #00f5d4;
+            padding: 7px 16px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: bold;
+            letter-spacing: 1px;
+            z-index: 9999;
+            pointer-events: none;
+            box-shadow: 0 4px 18px rgba(0, 0, 0, 0.85), 0 0 10px rgba(0, 245, 212, 0.3);
+            text-align: center;
+            white-space: nowrap;
+            backdrop-filter: blur(4px);
+            animation: pulseHint 2s infinite ease-in-out;
+        }
+        @media screen and (orientation: portrait) {
+            #orientation-hint {
+                display: block;
+            }
+        }
+        @keyframes pulseHint {
+            0%, 100% { opacity: 0.95; transform: translateX(-50%) scale(1); }
+            50% { opacity: 0.70; transform: translateX(-50%) scale(0.97); }
+        }
+
+        /* Ajustes Responsivos para Pantallas Móviles */
+        @media (max-height: 640px), (max-width: 640px) {
+            .title-main { font-size: 30px !important; margin-bottom: 4px !important; }
+            .subtitle { font-size: 12px !important; margin-bottom: 12px !important; }
+            .controls-box { padding: 12px 18px !important; margin-bottom: 16px !important; max-height: 48vh; overflow-y: auto; }
+            .control-row { font-size: 11px !important; margin-bottom: 6px !important; }
+            .btn-action { padding: 10px 24px !important; font-size: 15px !important; }
+            .hud-top-left { width: 240px !important; padding: 10px 12px !important; }
+        }
     </style>
 </head>
 <body>
+
+<div id="orientation-hint">🔄 Gira tu dispositivo a Horizontal (Landscape) para una mejor experiencia</div>
 
 <div id="game-container">
     <canvas id="gameCanvas" width="1100" height="720"></canvas>
@@ -298,11 +366,12 @@
                 <div id="dash-bar"></div>
             </div>
 
+            <div id="level-badge" class="wave-badge" style="display:none; color:#fbbf24; border-color:#fbbf24; text-shadow:0 0 8px rgba(251,191,36,0.7);">NIVEL 2 - MODO POTENCIADO</div>
             <div id="wave-counter" class="wave-badge">OLEADA: 1 / 3</div>
             
             <div class="weapon-badge">
                 <span>ARMA: <span id="weapon-name" class="weapon-name-tag">[1] ESPADA</span></span>
-                <span id="weapon-hint" style="color: #94a3b8; font-size: 11px;">[1 / 2 / Q]</span>
+                <span id="weapon-hint" style="color: #94a3b8; font-size: 11px;">[1]</span>
             </div>
 
             <div id="buff-indicator" class="buff-status"></div>
@@ -336,7 +405,7 @@
             </div>
             <div class="control-row">
                 <span>Cambiar de Arma</span>
-                <span class="key-tag">1 / 2 / Q / RUEDA</span>
+                <span class="key-tag">1 / 2 / 3 / Q / RUEDA</span>
             </div>
             <div class="control-row">
                 <span>Pausar Partida</span>
@@ -361,15 +430,18 @@
 
     <!-- Victory Screen -->
     <div id="victory-screen" class="overlay-screen hidden">
-        <div class="title-main victory-title">¡VICTORIA ÉPICA!</div>
-        <div class="subtitle">EL PEPE MAESTRO HA SIDO DERROTADO</div>
+        <div id="victory-title" class="title-main victory-title">¡VICTORIA ÉPICA!</div>
+        <div id="victory-subtitle" class="subtitle">EL PEPE MAESTRO HA SIDO DERROTADO</div>
         <div class="controls-box" style="text-align: center;">
             <p style="color: #e2e8f0; line-height: 1.6; font-size: 14px;">
                 Has superado las hordas abisales y quebrado el poder arcano del Señor de la Mazmorra.<br><br>
                 <span id="victory-stats" style="color: #00f5d4; font-weight: bold;"></span>
             </p>
         </div>
-        <button id="btn-play-again" class="btn-action" style="border-color:#fbbf24; color:#fbbf24;">JUGAR DE NUEVO (R)</button>
+        <div style="display:flex; gap:16px; justify-content:center; flex-wrap:wrap;">
+            <button id="btn-next-level" class="btn-action" style="border-color:#00f5d4; color:#00f5d4;">IR AL NIVEL 2 (ESPACIO)</button>
+            <button id="btn-play-again" class="btn-action" style="border-color:#fbbf24; color:#fbbf24;">JUGAR DE NUEVO (NIVEL 1) (R)</button>
+        </div>
     </div>
 </div>
 
@@ -392,7 +464,7 @@ class SoundManager {
             }
         }
         if (this.ctx && this.ctx.state === 'suspended') {
-            this.ctx.resume();
+            this.ctx.resume().catch(() => {});
         }
     }
 
@@ -431,6 +503,61 @@ class SoundManager {
             gain.connect(this.ctx.destination);
             osc.start(now);
             osc.stop(now + 0.11);
+        } catch(e) {}
+    }
+
+    // Ráfaga de rifle de asalto: chasquido percusivo seco (ruido filtrado + golpe grave corto)
+    playRifleShot() {
+        if (!this.ctx) return;
+        try {
+            const now = this.ctx.currentTime;
+            const len = Math.floor(this.ctx.sampleRate * 0.05);
+            const buf = this.ctx.createBuffer(1, len, this.ctx.sampleRate);
+            const data = buf.getChannelData(0);
+            for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len);
+            const noise = this.ctx.createBufferSource();
+            noise.buffer = buf;
+            const hp = this.ctx.createBiquadFilter();
+            hp.type = 'highpass';
+            hp.frequency.value = 1400;
+            const ng = this.ctx.createGain();
+            ng.gain.setValueAtTime(0.22, now);
+            ng.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
+            noise.connect(hp);
+            hp.connect(ng);
+            ng.connect(this.ctx.destination);
+            noise.start(now);
+
+            const osc = this.ctx.createOscillator();
+            const og = this.ctx.createGain();
+            osc.type = 'square';
+            osc.frequency.setValueAtTime(320, now);
+            osc.frequency.exponentialRampToValueAtTime(70, now + 0.04);
+            og.gain.setValueAtTime(0.14, now);
+            og.gain.exponentialRampToValueAtTime(0.001, now + 0.045);
+            osc.connect(og);
+            og.connect(this.ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.05);
+        } catch(e) {}
+    }
+
+    // Paso pesado del Coloso: golpe sordo grave
+    playHeavyStep() {
+        if (!this.ctx) return;
+        try {
+            const now = this.ctx.currentTime;
+            const osc = this.ctx.createOscillator();
+            const gain = this.ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(90, now);
+            osc.frequency.exponentialRampToValueAtTime(35, now + 0.16);
+            gain.gain.setValueAtTime(0.3, now);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+            osc.connect(gain);
+            gain.connect(this.ctx.destination);
+            osc.start(now);
+            osc.stop(now + 0.2);
         } catch(e) {}
     }
 
@@ -870,6 +997,7 @@ class GunPickup {
         this.radius = 16;
         this.time = 0;
         this.life = 60.0;
+        this.kind = arguments[2] || 'GUN'; // 'GUN' | 'RIFLE'
         this.dead = false;
     }
 
@@ -890,6 +1018,19 @@ class GunPickup {
         }
 
         if (MathUtils.circleCollide(this.x, this.y, this.radius, player.x, player.y, player.radius)) {
+            if (this.kind === 'RIFLE') {
+                const alreadyHadRifle = player.hasRifle;
+                player.hasRifle = true;
+                // Sin duplicados: si ya lo tenía no se fuerza el cambio de arma
+                if (!alreadyHadRifle) {
+                    player.currentWeapon = 'RIFLE';
+                    game.floatingTexts.push(new FloatingText(player.x, player.y - 35, '¡RIFLE DE ASALTO DESBLOQUEADO!', '#fbbf24', 18, true));
+                    soundManager.playPickup();
+                }
+                game.spawnParticles(this.x, this.y, 25, '#fbbf24', 180, true);
+                this.dead = true;
+                return;
+            }
             const alreadyHadGun = player.hasGun;
             player.hasGun = true;
             // No forzar cambio si el jugador ya tenía la pistola desbloqueada
@@ -922,6 +1063,19 @@ class GunPickup {
         // Dibujo procedural del arma (Pistola)
         ctx.save();
         ctx.rotate(-0.25);
+        if (this.kind === 'RIFLE') {
+            ctx.fillStyle = '#111827';
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 1.2;
+            ctx.fillRect(-14, -4, 38, 8);
+            ctx.strokeRect(-14, -4, 38, 8);
+            ctx.fillRect(-6, 4, 5, 10);
+            ctx.fillStyle = '#1f2937';
+            ctx.fillRect(4, 4, 6, 9);
+            ctx.fillStyle = '#fbbf24';
+            ctx.fillRect(24, -2, 8, 4);
+            ctx.globalAlpha = 0; // oculta la silueta de pistola
+        }
         ctx.fillStyle = '#1e293b';
         ctx.strokeStyle = '#0f172a';
         ctx.lineWidth = 1.5;
@@ -940,7 +1094,7 @@ class GunPickup {
         ctx.font = '900 11px "Courier New", monospace';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'bottom';
-        const tagText = 'PISTOLA';
+        const tagText = this.kind === 'RIFLE' ? 'RIFLE DE ASALTO' : 'PISTOLA';
         const textMetrics = ctx.measureText(tagText);
         const tagW = textMetrics.width + 12;
         const tagH = 15;
@@ -1074,8 +1228,8 @@ class Entity {
 
     applyKnockback(sourceX, sourceY, force) {
         const angle = Math.atan2(this.y - sourceY, this.x - sourceX);
-        this.kbVx = Math.cos(angle) * force;
-        this.kbVy = Math.sin(angle) * force;
+        this.kbVx = Math.cos(angle) * force * (this.kbMult === undefined ? 1 : this.kbMult);
+        this.kbVy = Math.sin(angle) * force * (this.kbMult === undefined ? 1 : this.kbMult);
     }
 
     triggerSquash(sx, sy) {
@@ -1178,19 +1332,35 @@ class Player extends Entity {
         // Buffs temporales de estilo Roguelike
         this.damageBoostTimer = 0;
         this.speedBoostTimer = 0;
+
+        // Estadísticas permanentes de Nivel 2 ("Más Fuerte") y arsenal
+        this.hasRifle = false;
+        this.rifleCooldown = 0.11; // ~9 disparos/s
+        this.rifleCooldownTimer = 0;
+        this.rifleRecoil = 0;
+        this.muzzleFlash = 0;
+        this.dmgMult = 1;
+        this.moveSpeedMult = 1;
+        this.powered = false;
     }
 
     switchWeapon(weapon, game) {
         if (weapon === 'GUN' && !this.hasGun) return;
+        if (weapon === 'RIFLE' && !this.hasRifle) return;
         if (this.currentWeapon === weapon) return;
         this.currentWeapon = weapon;
-        game.floatingTexts.push(new FloatingText(this.x, this.y - 24, weapon === 'GUN' ? 'PISTOLA EQUIPADA' : 'ESPADA EQUIPADA', '#00f5d4', 15));
+        const names = { SWORD: 'ESPADA EQUIPADA', GUN: 'PISTOLA EQUIPADA', RIFLE: 'RIFLE DE ASALTO EQUIPADO' };
+        game.floatingTexts.push(new FloatingText(this.x, this.y - 24, names[weapon], '#00f5d4', 15));
         soundManager.playPickup();
     }
 
     toggleWeapon(game) {
-        if (!this.hasGun) return;
-        this.switchWeapon(this.currentWeapon === 'SWORD' ? 'GUN' : 'SWORD', game);
+        const order = ['SWORD'];
+        if (this.hasGun) order.push('GUN');
+        if (this.hasRifle) order.push('RIFLE');
+        if (order.length < 2) return;
+        const idx = order.indexOf(this.currentWeapon);
+        this.switchWeapon(order[(idx + 1) % order.length], game);
     }
 
     takeDamage(amount, sourceX, sourceY, kbForce, game) {
@@ -1249,7 +1419,7 @@ class Player extends Entity {
             const bx = this.x + Math.cos(this.aimAngle) * spawnDist;
             const by = this.y + Math.sin(this.aimAngle) * spawnDist;
             const isCrit = Math.random() < 0.22;
-            const dmg = Math.round(20 * (this.damageBoostTimer > 0 ? 1.4 : 1.0) * (isCrit ? 1.6 : 1.0));
+            const dmg = Math.round(20 * this.dmgMult * (this.damageBoostTimer > 0 ? 1.4 : 1.0) * (isCrit ? 1.6 : 1.0));
 
             game.projectiles.push(new Projectile(
                 bx, by,
@@ -1261,6 +1431,38 @@ class Player extends Entity {
             soundManager.playGunshot();
             game.spawnParticles(bx, by, 7, '#38bdf8', 130, true);
             game.addScreenShake(2.5, 0.06);
+            return;
+        }
+
+        if (this.currentWeapon === 'RIFLE') {
+            if (this.rifleCooldownTimer > 0) return;
+            this.rifleCooldownTimer = this.rifleCooldown;
+
+            // Retroceso visual y ligera dispersión angular
+            this.rifleRecoil = 1;
+            this.muzzleFlash = 0.05;
+            this.kbVx -= Math.cos(this.aimAngle) * 28;
+            this.kbVy -= Math.sin(this.aimAngle) * 28;
+
+            const spread = (Math.random() - 0.5) * 0.15;
+            const ang = this.aimAngle + spread;
+            const speed = 1250;
+            const spawnDist = 52;
+            const bx = this.x + Math.cos(this.aimAngle) * spawnDist;
+            const by = this.y + Math.sin(this.aimAngle) * spawnDist;
+            const isCrit = Math.random() < 0.15;
+            const dmg = Math.round(13 * this.dmgMult * (this.damageBoostTimer > 0 ? 1.4 : 1.0) * (isCrit ? 1.6 : 1.0));
+
+            game.projectiles.push(new Projectile(
+                bx, by,
+                Math.cos(ang) * speed,
+                Math.sin(ang) * speed,
+                4, dmg, '#fbbf24', false
+            ));
+
+            soundManager.playRifleShot();
+            game.spawnParticles(bx, by, 3, '#fde047', 110, true);
+            game.addScreenShake(1.5, 0.04);
             return;
         }
 
@@ -1300,6 +1502,9 @@ class Player extends Entity {
         if (this.dashCooldownTimer > 0) this.dashCooldownTimer = Math.max(0, this.dashCooldownTimer - dt);
         if (this.attackCooldownTimer > 0) this.attackCooldownTimer = Math.max(0, this.attackCooldownTimer - dt);
         if (this.gunCooldownTimer > 0) this.gunCooldownTimer = Math.max(0, this.gunCooldownTimer - dt);
+        if (this.rifleCooldownTimer > 0) this.rifleCooldownTimer = Math.max(0, this.rifleCooldownTimer - dt);
+        if (this.muzzleFlash > 0) this.muzzleFlash -= dt;
+        this.rifleRecoil = Math.max(0, this.rifleRecoil - dt * 12);
 
         // Dirección hacia el cursor o última dirección
         const keys = game.keys;
@@ -1310,22 +1515,43 @@ class Player extends Entity {
         if (keys['KeyA'] || keys['ArrowLeft']) moveX -= 1;
         if (keys['KeyD'] || keys['ArrowRight']) moveX += 1;
 
-        if (game.mouse.active) {
+        // Integración del Joystick Virtual Táctil (Mitad Izquierda)
+        if (game.touchControls && game.touchControls.joystick.active) {
+            moveX = game.touchControls.joystick.dirX;
+            moveY = game.touchControls.joystick.dirY;
+        }
+
+        // Apuntado Inteligente (Twin-Stick + Auto-Aim en móvil, Cursor/Teclas en PC)
+        if (game.touchControls && game.touchControls.isAttackTouchHeld) {
+            const ab = game.touchControls.buttons.attack;
+            if (ab.hasDragged) {
+                // Arrastre en botón de ataque -> Twin-Stick Aiming manual
+                this.aimAngle = ab.aimAngle;
+            } else {
+                // Toque estático sin arrastrar -> Auto-Aim al enemigo o jefe vivo más cercano
+                const nearest = game.getNearestTarget(this.x, this.y);
+                if (nearest) {
+                    this.aimAngle = Math.atan2(nearest.y - this.y, nearest.x - this.x);
+                } else if (moveX !== 0 || moveY !== 0) {
+                    this.aimAngle = Math.atan2(moveY, moveX);
+                }
+            }
+        } else if (game.mouse.active) {
             this.aimAngle = Math.atan2(game.mouse.worldY - this.y, game.mouse.worldX - this.x);
         } else if (moveX !== 0 || moveY !== 0) {
             this.aimAngle = Math.atan2(moveY, moveX);
         }
 
-        // Inputs de Dash y Ataque
+        // Inputs de Dash y Ataque (Soporte PC + Móvil Fuego Continuo)
         if (keys['Space'] || keys['ShiftLeft'] || keys['ShiftRight']) {
             this.startDash(moveX, moveY, game);
         }
-        if (game.mouse.down || keys['KeyJ']) {
+        if (game.mouse.down || keys['KeyJ'] || (game.touchControls && game.touchControls.isAttackTouchHeld)) {
             this.startAttack(game);
         }
 
         // Lógica de Movimiento o Dash
-        const currentSpeed = this.baseSpeed * (this.speedBoostTimer > 0 ? 1.3 : 1.0);
+        const currentSpeed = this.baseSpeed * this.moveSpeedMult * (this.speedBoostTimer > 0 ? 1.3 : 1.0);
         if (this.isDashing) {
             this.dashTimer -= dt;
             this.vx = this.dashDirX * this.dashSpeed;
@@ -1388,7 +1614,7 @@ class Player extends Entity {
         const halfArc = this.swordArc * 0.5;
         const isCrit = Math.random() < 0.22;
         const dmgMult = (this.damageBoostTimer > 0 ? 1.4 : 1.0) * (isCrit ? 1.65 : 1.0);
-        const finalDamage = Math.round(this.baseDamage * dmgMult);
+        const finalDamage = Math.round(this.baseDamage * this.dmgMult * dmgMult);
 
         // Contra Enemigos y Jefe
         const targets = [...game.enemies];
@@ -1513,6 +1739,28 @@ class Player extends Entity {
         ctx.ellipse(0, 24 - walkBob, this.radius * 1.25, this.radius * 0.55, 0, 0, Math.PI * 2);
         ctx.fill();
 
+        // Aura dorada/cian del Modo Potenciado (Nivel 2)
+        if (this.powered) {
+            const pulse = 0.5 + Math.sin(this.animTime * 5) * 0.2;
+            const auraGrad = ctx.createRadialGradient(0, 0, 10, 0, 0, 52);
+            auraGrad.addColorStop(0, `rgba(251, 191, 36, ${0.28 * pulse + 0.1})`);
+            auraGrad.addColorStop(0.6, `rgba(0, 245, 212, ${0.18 * pulse})`);
+            auraGrad.addColorStop(1, 'rgba(0, 245, 212, 0)');
+            ctx.fillStyle = auraGrad;
+            ctx.beginPath();
+            ctx.arc(0, 0, 52, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.save();
+            ctx.strokeStyle = `rgba(251, 191, 36, ${0.45 + pulse * 0.3})`;
+            ctx.lineWidth = 2;
+            ctx.shadowColor = '#00f5d4';
+            ctx.shadowBlur = 14;
+            ctx.beginPath();
+            ctx.arc(0, 2, 38 + Math.sin(this.animTime * 6) * 2, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+        }
+
         // Aura si tiene buff activo (Furia o Prisa)
         if (this.damageBoostTimer > 0 || this.speedBoostTimer > 0) {
             ctx.strokeStyle = this.damageBoostTimer > 0 ? '#fbbf24' : '#38bdf8';
@@ -1601,6 +1849,55 @@ class Player extends Entity {
         ctx.fill();
         ctx.stroke();
 
+        if (this.currentWeapon === 'RIFLE') {
+            ctx.save();
+            ctx.rotate(this.aimAngle);
+            if (facingLeft) ctx.scale(1, -1);
+            ctx.translate(-this.rifleRecoil * 7, 0);
+            // Culata
+            ctx.fillStyle = '#1f2937';
+            ctx.strokeStyle = '#020617';
+            ctx.lineWidth = 1.2;
+            ctx.fillRect(-14, -3, 12, 7);
+            ctx.strokeRect(-14, -3, 12, 7);
+            // Cuerpo táctico oscuro
+            ctx.fillStyle = '#111827';
+            ctx.fillRect(-2, -4.5, 24, 9);
+            ctx.strokeRect(-2, -4.5, 24, 9);
+            // Cargador
+            ctx.fillStyle = '#334155';
+            ctx.fillRect(7, 4, 6, 11);
+            ctx.strokeRect(7, 4, 6, 11);
+            // Empuñadura
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(-1, 4, 4, 8);
+            // Cañón largo
+            ctx.fillStyle = '#1e293b';
+            ctx.fillRect(22, -2, 26, 4);
+            ctx.strokeRect(22, -2, 26, 4);
+            // Punta y mira
+            ctx.fillStyle = '#fbbf24';
+            ctx.fillRect(46, -3, 4, 6);
+            ctx.fillRect(2, -7, 10, 2.5);
+            // Fogonazo
+            if (this.muzzleFlash > 0) {
+                ctx.shadowColor = '#fde047';
+                ctx.shadowBlur = 18;
+                ctx.fillStyle = '#fde047';
+                ctx.beginPath();
+                ctx.moveTo(50, 0);
+                ctx.lineTo(60, -7);
+                ctx.lineTo(68, 0);
+                ctx.lineTo(60, 7);
+                ctx.closePath();
+                ctx.fill();
+                ctx.fillStyle = '#ffffff';
+                ctx.beginPath();
+                ctx.arc(55, 0, 3.5, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.restore();
+        } else
         // Anclaje directo de la Pistola a la mano
         if (this.currentWeapon === 'GUN') {
             ctx.save();
@@ -1707,15 +2004,19 @@ class Player extends Entity {
 class Enemy extends Entity {
     constructor(x, y, archetype = 'CHASER', waveIndex = 1) {
         const isChaser = archetype === 'CHASER';
-        const radius = isChaser ? 16 : 18;
-        const hp = (isChaser ? 48 : 38) + (waveIndex - 1) * 12;
+        const radius = archetype === 'TANK' ? 32 : (isChaser ? 16 : 18);
+        const hp = archetype === 'TANK'
+            ? 4 * (48 + (waveIndex - 1) * 12) // 4x la vida de un melee normal
+            : (isChaser ? 48 : 38) + (waveIndex - 1) * 12;
         super(x, y, radius, hp);
 
         this.archetype = archetype; // 'CHASER' | 'SHOOTER'
-        this.speed = isChaser ? MathUtils.randRange(138, 168) : MathUtils.randRange(95, 115);
-        this.contactDamage = isChaser ? 16 : 10;
+        this.speed = archetype === 'TANK' ? MathUtils.randRange(58, 70) : (isChaser ? MathUtils.randRange(138, 168) : MathUtils.randRange(95, 115));
+        this.contactDamage = archetype === 'TANK' ? 8 : (isChaser ? 16 : 10); // Tanque: la mitad del daño normal
         this.attackCooldown = isChaser ? 0.8 : MathUtils.randRange(1.7, 2.3);
         this.attackTimer = MathUtils.randRange(0.4, 1.2);
+        this.kbMult = archetype === 'TANK' ? 0.3 : 1; // Tanque: 70% menos retroceso
+        this.stepPhase = 0;
     }
 
     takeDamage(amount, sourceX, sourceY, kbForce, isCrit, game) {
@@ -1729,7 +2030,7 @@ class Enemy extends Entity {
 
         const textColor = isCrit ? '#fbbf24' : '#ffffff';
         game.floatingTexts.push(new FloatingText(this.x, this.y - 18, isCrit ? `${amount}!` : `${amount}`, textColor, 15, isCrit));
-        game.spawnParticles(this.x, this.y, isCrit ? 14 : 8, this.archetype === 'CHASER' ? '#f43f5e' : '#a855f7', 160, true);
+        game.spawnParticles(this.x, this.y, isCrit ? 14 : 8, this.archetype === 'TANK' ? '#f97316' : (this.archetype === 'CHASER' ? '#f43f5e' : '#a855f7'), 160, true);
 
         if (this.hp <= 0) {
             this.dead = true;
@@ -1748,7 +2049,19 @@ class Enemy extends Entity {
 
         this.attackTimer -= dt;
 
-        if (this.archetype === 'CHASER') {
+        if (this.archetype === 'CHASER' || this.archetype === 'TANK') {
+            // Pasos pesados del Coloso
+            if (this.archetype === 'TANK') {
+                const ph = Math.floor(this.animTime * 2.6);
+                if (ph !== this.stepPhase) {
+                    this.stepPhase = ph;
+                    if (dist < 650) {
+                        soundManager.playHeavyStep();
+                        game.addScreenShake(2.2, 0.09);
+                        game.spawnParticles(this.x, this.y + this.radius * 0.8, 4, '#6b7280', 70, false);
+                    }
+                }
+            }
             // IA Perseguidor: Avanza agresivamente cuerpo a cuerpo
             this.vx = Math.cos(angle) * this.speed;
             this.vy = Math.sin(angle) * this.speed;
@@ -1804,7 +2117,129 @@ class Enemy extends Entity {
         this.updateBase(dt, game);
     }
 
+    // ==========================================
+    // COLOSO / TANQUE: Golem acorazado de obsidiana con grietas brillantes
+    // ==========================================
+    drawTank(ctx, player) {
+        const t = this.animTime;
+        const walk = Math.sin(t * 2.6 * Math.PI);          // ciclo de pasos lento y pesado
+        const bob = Math.abs(walk) * 3;
+        const facingLeft = player.x < this.x;
+        const glow = 0.65 + Math.sin(t * 4) * 0.25;
+        const flash = this.hitFlash > 0;
+
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.scale(this.scaleX, this.scaleY);
+
+        // Sombra grande
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+        ctx.beginPath();
+        ctx.ellipse(0, 46, this.radius * 1.45, this.radius * 0.6, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        if (facingLeft) ctx.scale(-1, 1);
+
+        const rock = flash ? '#ffffff' : '#1c1a24';
+        const rockLight = flash ? '#ffffff' : '#2e2a3a';
+        const rockDark = flash ? '#ffffff' : '#0e0d13';
+        const crack = flash ? '#ffffff' : `rgba(255, ${Math.round(110 + glow * 60)}, 30, 1)`;
+
+        const block = (x, y, w, h) => {
+            ctx.fillStyle = rock;
+            ctx.fillRect(x, y, w, h);
+            ctx.fillStyle = rockLight;
+            ctx.fillRect(x, y, w, 4);
+            ctx.fillRect(x, y, 4, h);
+            ctx.fillStyle = rockDark;
+            ctx.fillRect(x, y + h - 5, w, 5);
+            ctx.fillRect(x + w - 4, y, 4, h);
+            ctx.strokeStyle = '#050508';
+            ctx.lineWidth = 2;
+            ctx.strokeRect(x, y, w, h);
+        };
+
+        // Piernas (alternan al caminar)
+        block(-30, 20 - bob * (walk > 0 ? 1 : 0), 24, 28);
+        block(6, 20 - bob * (walk < 0 ? 1 : 0), 24, 28);
+
+        // Brazos masivos
+        const armSwing = walk * 6;
+        block(-56, -22 + armSwing, 20, 46);
+        block(36, -22 - armSwing, 20, 46);
+        // Puños
+        block(-60, 20 + armSwing, 28, 20);
+        block(32, 20 - armSwing, 28, 20);
+
+        // Torso acorazado
+        ctx.save();
+        ctx.translate(0, -bob);
+        block(-38, -36, 76, 62);
+
+        // Placas de armadura de obsidiana
+        ctx.fillStyle = rockLight;
+        ctx.fillRect(-30, -28, 26, 20);
+        ctx.fillRect(4, -28, 26, 20);
+        ctx.strokeStyle = '#050508';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(-30, -28, 26, 20);
+        ctx.strokeRect(4, -28, 26, 20);
+
+        // Grietas de lava brillantes
+        ctx.save();
+        ctx.strokeStyle = crack;
+        ctx.shadowColor = '#f97316';
+        ctx.shadowBlur = flash ? 0 : 10 * glow;
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(-20, -8); ctx.lineTo(-12, 4); ctx.lineTo(-22, 12); ctx.lineTo(-14, 24);
+        ctx.moveTo(10, -10); ctx.lineTo(18, 2); ctx.lineTo(8, 10); ctx.lineTo(20, 22);
+        ctx.moveTo(-2, -36); ctx.lineTo(2, -20);
+        ctx.stroke();
+        ctx.restore();
+
+        // Cabeza
+        block(-18, -62, 36, 30);
+        // Ojos incandescentes
+        ctx.save();
+        ctx.fillStyle = crack;
+        ctx.shadowColor = '#f97316';
+        ctx.shadowBlur = flash ? 0 : 14;
+        ctx.fillRect(-12, -52, 9, 6);
+        ctx.fillRect(3, -52, 9, 6);
+        ctx.restore();
+        // Hombreras con púas
+        block(-48, -42, 24, 16);
+        block(24, -42, 24, 16);
+        ctx.fillStyle = rockLight;
+        ctx.beginPath();
+        ctx.moveTo(-44, -42); ctx.lineTo(-38, -54); ctx.lineTo(-32, -42);
+        ctx.moveTo(28, -42); ctx.lineTo(34, -54); ctx.lineTo(40, -42);
+        ctx.fill();
+        ctx.restore();
+
+        ctx.restore();
+
+        // Barra de vida gruesa sobre la cabeza (siempre visible)
+        const bw = 78;
+        const bh = 10;
+        const bx = this.x - bw / 2;
+        const by = this.y - this.radius - 52;
+        ctx.fillStyle = '#0f172a';
+        ctx.fillRect(bx - 2, by - 2, bw + 4, bh + 4);
+        ctx.fillStyle = '#3f1d1d';
+        ctx.fillRect(bx, by, bw, bh);
+        ctx.fillStyle = '#f97316';
+        ctx.fillRect(bx, by, bw * MathUtils.clamp(this.hp / this.maxHp, 0, 1), bh);
+        ctx.fillStyle = 'rgba(255,255,255,0.25)';
+        ctx.fillRect(bx, by, bw * MathUtils.clamp(this.hp / this.maxHp, 0, 1), 3);
+        ctx.strokeStyle = '#000000';
+        ctx.lineWidth = 1.5;
+        ctx.strokeRect(bx - 2, by - 2, bw + 4, bh + 4);
+    }
+
     draw(ctx, player) {
+        if (this.archetype === 'TANK') { this.drawTank(ctx, player); return; }
         ctx.save();
         ctx.translate(this.x, this.y);
         ctx.scale(this.scaleX, this.scaleY);
@@ -2017,7 +2452,9 @@ pepeImg.src = 'pepe.png';
 
 class Boss extends Entity {
     constructor(x, y) {
-        super(x, y, 42, 950);
+        super(x, y, 42 * (arguments[2] === 2 ? 1.3 : 1), arguments[2] === 2 ? 1800 : 950);
+        this.level = arguments[2] === 2 ? 2 : 1;
+        this.sizeScale = this.level === 2 ? 1.3 : 1;
         this.enraged = false;
         this.baseSpeed = 135;
 
@@ -2353,6 +2790,7 @@ class Boss extends Entity {
         // 4. Dibujar a EL PEPE MAESTRO
         ctx.save();
         ctx.translate(this.x, this.y - this.jumpHeight);
+        ctx.scale(this.sizeScale, this.sizeScale);
 
         const wobble = Math.sin(this.animTime * 8) * 0.04;
         ctx.rotate(wobble);
@@ -2367,7 +2805,7 @@ class Boss extends Entity {
         ctx.shadowColor = auraColor;
         ctx.strokeStyle = auraColor;
         ctx.lineWidth = this.enraged ? 4 : 3;
-        const auraRadius = this.radius + 12 + Math.sin(this.animTime * 10) * 4;
+        const auraRadius = this.radius / this.sizeScale + 12 + Math.sin(this.animTime * 10) * 4;
         ctx.beginPath();
         ctx.arc(0, 4, auraRadius, 0, Math.PI * 2);
         ctx.stroke();
@@ -2768,14 +3206,71 @@ class Game {
             h: this.height - 120
         };
 
+        // Nivel actual, mundo y cámara dinámica
+        this.level = 1;
+        this.runId = 0;
+        this.worldW = this.width;
+        this.worldH = this.height;
+        this.camera = { x: 0, y: 0 };
+        this.spawners = [];
+
         // Cámara y Screen Shake
         this.shakeIntensity = 0;
         this.shakeTimer = 0;
         this.bossIntroTimer = 0;
 
-        // Controles de entrada
+        // Controles de entrada (PC)
         this.keys = {};
         this.mouse = { x: 0, y: 0, worldX: 0, worldY: 0, down: false, active: false };
+
+        // Controles táctiles móviles y soporte multitouch independiente
+        this.isTouchDevice = ('ontouchstart' in window) || (navigator.maxTouchPoints > 0);
+        this.touchControls = {
+            joystick: {
+                active: false,
+                touchId: null,
+                baseX: 140,
+                baseY: 580,
+                stickX: 140,
+                stickY: 580,
+                dirX: 0,
+                dirY: 0,
+                radius: 60,
+                stickRadius: 25
+            },
+            buttons: {
+                attack: {
+                    x: 970,
+                    y: 570,
+                    r: 45,
+                    down: false,
+                    touchId: null,
+                    hasDragged: false,
+                    aimAngle: 0
+                },
+                dash: {
+                    x: 855,
+                    y: 605,
+                    r: 32,
+                    down: false,
+                    touchId: null
+                },
+                weapon: {
+                    x: 970,
+                    y: 450,
+                    r: 30,
+                    down: false,
+                    touchId: null
+                },
+                pause: {
+                    x: 1030,
+                    y: 20,
+                    w: 45,
+                    h: 45
+                }
+            },
+            isAttackTouchHeld: false
+        };
 
         // Entidades y contenedores
         this.player = null;
@@ -2805,13 +3300,48 @@ class Game {
         requestAnimationFrame((t) => this.loop(t));
     }
 
+    getTouchCanvasPos(touch) {
+        const rect = this.canvas.getBoundingClientRect();
+        const scaleX = this.canvas.width / rect.width;
+        const scaleY = this.canvas.height / rect.height;
+        return {
+            x: (touch.clientX - rect.left) * scaleX,
+            y: (touch.clientY - rect.top) * scaleY
+        };
+    }
+
+    getNearestTarget(fromX, fromY, maxRange = 900) {
+        let nearest = null;
+        let minDist = maxRange;
+        const targets = [...this.enemies];
+        if (this.boss && !this.boss.dead && (!this.boss.isTargetable || this.boss.isTargetable())) {
+            targets.push(this.boss);
+        }
+        for (const t of targets) {
+            if (t.dead) continue;
+            const d = MathUtils.dist(fromX, fromY, t.x, t.y);
+            if (d < minDist) {
+                minDist = d;
+                nearest = t;
+            }
+        }
+        return nearest;
+    }
+
     setupInputs() {
         window.addEventListener('keydown', (e) => {
             soundManager.init();
             this.keys[e.code] = true;
 
+            // Victoria: ESPACIO avanza al Nivel 2 (solo tras vencer al jefe del Nivel 1)
+            if (e.code === 'Space' && this.state === 'VICTORY' && this.level === 1) {
+                e.preventDefault();
+                if (!e.repeat) this.goToLevel2();
+                return;
+            }
+
             // Reintentar
-            if (e.code === 'KeyR' && (this.state === 'GAMEOVER' || this.state === 'VICTORY')) {
+            if (e.code === 'KeyR' && !e.repeat && (this.state === 'GAMEOVER' || this.state === 'VICTORY')) {
                 this.startNewRun();
             }
 
@@ -2826,6 +3356,8 @@ class Game {
                     this.player.switchWeapon('SWORD', this);
                 } else if (e.code === 'Digit2') {
                     this.player.switchWeapon('GUN', this);
+                } else if (e.code === 'Digit3') {
+                    this.player.switchWeapon('RIFLE', this);
                 } else if (e.code === 'KeyQ') {
                     this.player.toggleWeapon(this);
                 }
@@ -2845,16 +3377,33 @@ class Game {
 
         this.canvas.addEventListener('mousemove', (e) => {
             const rect = this.canvas.getBoundingClientRect();
-            this.mouse.x = e.clientX - rect.left;
-            this.mouse.y = e.clientY - rect.top;
-            this.mouse.worldX = this.mouse.x;
-            this.mouse.worldY = this.mouse.y;
+            const scaleX = this.canvas.width / rect.width;
+            const scaleY = this.canvas.height / rect.height;
+            this.mouse.x = (e.clientX - rect.left) * scaleX;
+            this.mouse.y = (e.clientY - rect.top) * scaleY;
+            this.mouse.worldX = this.mouse.x + this.camera.x;
+            this.mouse.worldY = this.mouse.y + this.camera.y;
             this.mouse.active = true;
         });
 
         this.canvas.addEventListener('mousedown', (e) => {
             soundManager.init();
             if (e.button === 0) {
+                const rect = this.canvas.getBoundingClientRect();
+                const scaleX = this.canvas.width / rect.width;
+                const scaleY = this.canvas.height / rect.height;
+                const clickX = (e.clientX - rect.left) * scaleX;
+                const clickY = (e.clientY - rect.top) * scaleY;
+
+                // Clic en botón táctil de pausa
+                const pb = this.touchControls.buttons.pause;
+                if (clickX >= pb.x && clickX <= pb.x + pb.w && clickY >= pb.y && clickY <= pb.y + pb.h) {
+                    if (this.state === 'PLAYING' || this.state === 'BOSS_INTRO' || this.isPaused) {
+                        this.isPaused = !this.isPaused;
+                        return;
+                    }
+                }
+
                 if (this.isPaused) {
                     this.isPaused = false;
                     return;
@@ -2866,6 +3415,198 @@ class Game {
         window.addEventListener('mouseup', (e) => {
             if (e.button === 0) this.mouse.down = false;
         });
+
+        // ====================================================================
+        // GESTOR TÁCTIL MULTITOUCH INDEPENDIENTE (touch.identifier)
+        // ====================================================================
+        const handleTouchStart = (e) => {
+            soundManager.init();
+            if (soundManager.ctx && soundManager.ctx.state === 'suspended') {
+                soundManager.ctx.resume().catch(() => {});
+            }
+            this.isTouchDevice = true;
+            if (e.cancelable) e.preventDefault();
+
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                const t = e.changedTouches[i];
+                const pos = this.getTouchCanvasPos(t);
+
+                // Botón de Pausa en el HUD (Esquina Superior Derecha)
+                const pb = this.touchControls.buttons.pause;
+                if (pos.x >= pb.x - 10 && pos.x <= pb.x + pb.w + 10 && pos.y >= pb.y - 10 && pos.y <= pb.y + pb.h + 10) {
+                    if (this.state === 'PLAYING' || this.state === 'BOSS_INTRO' || this.isPaused) {
+                        this.isPaused = !this.isPaused;
+                        continue;
+                    }
+                }
+
+                // Tocar pantalla durante pausa reanuda la partida
+                if (this.isPaused) {
+                    this.isPaused = false;
+                    continue;
+                }
+
+                if (this.state === 'PLAYING' || this.state === 'BOSS_INTRO') {
+                    // 1. Mitad Izquierda de la Pantalla -> Joystick Virtual de Movimiento
+                    if (pos.x < this.width * 0.45) {
+                        const js = this.touchControls.joystick;
+                        if (!js.active) {
+                            js.active = true;
+                            js.touchId = t.identifier;
+                            js.baseX = Math.max(70, Math.min(this.width * 0.40, pos.x));
+                            js.baseY = Math.max(100, Math.min(this.height - 70, pos.y));
+                            js.stickX = pos.x;
+                            js.stickY = pos.y;
+                            const dx = pos.x - js.baseX;
+                            const dy = pos.y - js.baseY;
+                            const d = Math.hypot(dx, dy);
+                            if (d > 5) {
+                                js.dirX = dx / Math.max(d, js.radius);
+                                js.dirY = dy / Math.max(d, js.radius);
+                            } else {
+                                js.dirX = 0;
+                                js.dirY = 0;
+                            }
+                        }
+                        continue;
+                    }
+
+                    // 2. Esquina Inferior Derecha -> Botones Táctiles de Acción
+                    // Botón de Dash
+                    const dashBtn = this.touchControls.buttons.dash;
+                    if (MathUtils.dist(pos.x, pos.y, dashBtn.x, dashBtn.y) <= dashBtn.r + 14) {
+                        dashBtn.down = true;
+                        dashBtn.touchId = t.identifier;
+                        if (this.player && !this.player.dead) {
+                            this.player.startDash(this.touchControls.joystick.dirX, this.touchControls.joystick.dirY, this);
+                        }
+                        continue;
+                    }
+
+                    // Botón de Cambio de Arma
+                    const wepBtn = this.touchControls.buttons.weapon;
+                    if (MathUtils.dist(pos.x, pos.y, wepBtn.x, wepBtn.y) <= wepBtn.r + 14) {
+                        wepBtn.down = true;
+                        wepBtn.touchId = t.identifier;
+                        if (this.player && !this.player.dead) {
+                            this.player.toggleWeapon(this);
+                        }
+                        continue;
+                    }
+
+                    // Botón Principal de Ataque / Fuego Continuo
+                    const atkBtn = this.touchControls.buttons.attack;
+                    if (MathUtils.dist(pos.x, pos.y, atkBtn.x, atkBtn.y) <= atkBtn.r + 20) {
+                        atkBtn.down = true;
+                        atkBtn.touchId = t.identifier;
+                        atkBtn.hasDragged = false;
+                        this.touchControls.isAttackTouchHeld = true;
+                        if (this.player && !this.player.dead) {
+                            const nearest = this.getNearestTarget(this.player.x, this.player.y);
+                            if (nearest) {
+                                this.player.aimAngle = Math.atan2(nearest.y - this.player.y, nearest.x - this.player.x);
+                            } else if (this.touchControls.joystick.dirX !== 0 || this.touchControls.joystick.dirY !== 0) {
+                                this.player.aimAngle = Math.atan2(this.touchControls.joystick.dirY, this.touchControls.joystick.dirX);
+                            }
+                            this.player.startAttack(this);
+                        }
+                        continue;
+                    }
+                }
+            }
+        };
+
+        const handleTouchMove = (e) => {
+            if (e.cancelable) e.preventDefault();
+            const js = this.touchControls.joystick;
+            const atkBtn = this.touchControls.buttons.attack;
+
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                const t = e.changedTouches[i];
+                const pos = this.getTouchCanvasPos(t);
+
+                // Movimiento del Joystick
+                if (js.active && t.identifier === js.touchId) {
+                    const dx = pos.x - js.baseX;
+                    const dy = pos.y - js.baseY;
+                    const dist = Math.hypot(dx, dy);
+                    if (dist > js.radius) {
+                        js.stickX = js.baseX + (dx / dist) * js.radius;
+                        js.stickY = js.baseY + (dy / dist) * js.radius;
+                    } else {
+                        js.stickX = pos.x;
+                        js.stickY = pos.y;
+                    }
+                    if (dist > 5) {
+                        js.dirX = dx / Math.max(dist, js.radius);
+                        js.dirY = dy / Math.max(dist, js.radius);
+                    } else {
+                        js.dirX = 0;
+                        js.dirY = 0;
+                    }
+                }
+
+                // Apuntado arrastrando el botón de ataque -> Twin-Stick
+                if (atkBtn.down && t.identifier === atkBtn.touchId) {
+                    const dx = pos.x - atkBtn.x;
+                    const dy = pos.y - atkBtn.y;
+                    const dist = Math.hypot(dx, dy);
+                    if (dist > 14) {
+                        atkBtn.hasDragged = true;
+                        atkBtn.aimAngle = Math.atan2(dy, dx);
+                        if (this.player) {
+                            this.player.aimAngle = atkBtn.aimAngle;
+                        }
+                    }
+                }
+            }
+        };
+
+        const handleTouchEnd = (e) => {
+            if (e.cancelable) e.preventDefault();
+            const js = this.touchControls.joystick;
+            const atkBtn = this.touchControls.buttons.attack;
+            const dashBtn = this.touchControls.buttons.dash;
+            const wepBtn = this.touchControls.buttons.weapon;
+
+            for (let i = 0; i < e.changedTouches.length; i++) {
+                const t = e.changedTouches[i];
+
+                if (js.active && t.identifier === js.touchId) {
+                    js.active = false;
+                    js.touchId = null;
+                    js.stickX = js.baseX;
+                    js.stickY = js.baseY;
+                    js.dirX = 0;
+                    js.dirY = 0;
+                }
+
+                if (atkBtn.down && t.identifier === atkBtn.touchId) {
+                    atkBtn.down = false;
+                    atkBtn.touchId = null;
+                    atkBtn.hasDragged = false;
+                    this.touchControls.isAttackTouchHeld = false;
+                }
+
+                if (dashBtn.touchId === t.identifier) {
+                    dashBtn.down = false;
+                    dashBtn.touchId = null;
+                }
+
+                if (wepBtn.touchId === t.identifier) {
+                    wepBtn.down = false;
+                    wepBtn.touchId = null;
+                }
+            }
+        };
+
+        this.canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+        this.canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+        this.canvas.addEventListener('touchend', handleTouchEnd, { passive: false });
+        this.canvas.addEventListener('touchcancel', handleTouchEnd, { passive: false });
+
+        window.addEventListener('touchend', handleTouchEnd, { passive: false });
+        window.addEventListener('touchcancel', handleTouchEnd, { passive: false });
     }
 
     setupUI() {
@@ -2885,54 +3626,144 @@ class Game {
             bossHpBar: document.getElementById('boss-hp-bar'),
             bossTitle: document.getElementById('boss-title'),
             gameoverStats: document.getElementById('gameover-stats'),
-            victoryStats: document.getElementById('victory-stats')
+            victoryStats: document.getElementById('victory-stats'),
+            levelBadge: document.getElementById('level-badge'),
+            victoryTitle: document.getElementById('victory-title'),
+            victorySubtitle: document.getElementById('victory-subtitle'),
+            btnNextLevel: document.getElementById('btn-next-level')
         };
 
-        document.getElementById('btn-start').addEventListener('click', () => this.startNewRun());
-        document.getElementById('btn-retry').addEventListener('click', () => this.startNewRun());
-        document.getElementById('btn-play-again').addEventListener('click', () => this.startNewRun());
+        // Soporte Dual Táctil + Clic para Navegación en Pantallas Superpuestas
+        const bindButton = (id, action) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            const handler = (e) => {
+                soundManager.init();
+                if (soundManager.ctx && soundManager.ctx.state === 'suspended') {
+                    soundManager.ctx.resume().catch(() => {});
+                }
+                if (e.cancelable) e.preventDefault();
+                el.blur();
+                action();
+            };
+            el.addEventListener('click', handler);
+            el.addEventListener('touchstart', handler, { passive: false });
+        };
+
+        bindButton('btn-start', () => this.startNewRun());
+        bindButton('btn-retry', () => this.startNewRun());
+        bindButton('btn-play-again', () => this.startNewRun());
+        bindButton('btn-next-level', () => this.goToLevel2());
+
+        // Quitar el foco de los botones para que ESPACIO/R no los reactiven por accidente
+        for (const id of ['btn-start', 'btn-retry', 'btn-play-again', 'btn-next-level']) {
+            const el = document.getElementById(id);
+            if (el) el.addEventListener('click', () => el.blur());
+        }
     }
 
     initArenaEnvironment() {
-        this.pillars = [
-            new Pillar(this.arena.x + 210, this.arena.y + 165, 32, true),
-            new Pillar(this.arena.x + this.arena.w - 210, this.arena.y + 165, 32, true),
-            new Pillar(this.arena.x + 210, this.arena.y + this.arena.h - 165, 32, true),
-            new Pillar(this.arena.x + this.arena.w - 210, this.arena.y + this.arena.h - 165, 32, true)
-        ];
+        const isL2 = this.level === 2;
 
-        // Antorchas con iluminación radial cálida en las paredes estilo Minecraft
+        // Dimensiones del mundo: Nivel 1 = 1100x720 (pantalla), Nivel 2 = 2200x1500 (cámara dinámica)
+        this.worldW = isL2 ? 2200 : this.width;
+        this.worldH = isL2 ? 1500 : this.height;
+        this.arena = {
+            x: 60,
+            y: 60,
+            w: this.worldW - 120,
+            h: this.worldH - 120
+        };
+
         const ax = this.arena.x;
         const ay = this.arena.y;
         const aw = this.arena.w;
         const ah = this.arena.h;
-        this.torches = [
-            { x: ax + 24, y: ay + 24 },
-            { x: ax + aw * 0.5, y: ay + 18 },
-            { x: ax + aw - 24, y: ay + 24 },
-            { x: ax + 24, y: ay + ah - 24 },
-            { x: ax + aw * 0.5, y: ay + ah - 18 },
-            { x: ax + aw - 24, y: ay + ah - 24 },
-            { x: ax + 18, y: ay + ah * 0.5 },
-            { x: ax + aw - 18, y: ay + ah * 0.5 }
-        ];
 
-        if (!this.dungeonFloorCanvas) {
+        if (!isL2) {
+            this.pillars = [
+                new Pillar(ax + 210, ay + 165, 32, true),
+                new Pillar(ax + aw - 210, ay + 165, 32, true),
+                new Pillar(ax + 210, ay + ah - 165, 32, true),
+                new Pillar(ax + aw - 210, ay + ah - 165, 32, true)
+            ];
+
+            // Antorchas con iluminación radial cálida en las paredes estilo Minecraft
+            this.torches = [
+                { x: ax + 24, y: ay + 24 },
+                { x: ax + aw * 0.5, y: ay + 18 },
+                { x: ax + aw - 24, y: ay + 24 },
+                { x: ax + 24, y: ay + ah - 24 },
+                { x: ax + aw * 0.5, y: ay + ah - 18 },
+                { x: ax + aw - 24, y: ay + ah - 24 },
+                { x: ax + 18, y: ay + ah * 0.5 },
+                { x: ax + aw - 18, y: ay + ah * 0.5 }
+            ];
+
+            this.spawners = [{ x: ax + aw * 0.5, y: ay + ah * 0.5 }];
+        } else {
+            // Múltiples Mob Spawners distribuidos por el mapa expandido
+            this.spawners = [
+                { x: ax + aw * 0.5, y: ay + ah * 0.5 },
+                { x: ax + aw * 0.2, y: ay + ah * 0.27 },
+                { x: ax + aw * 0.8, y: ay + ah * 0.27 },
+                { x: ax + aw * 0.2, y: ay + ah * 0.73 },
+                { x: ax + aw * 0.8, y: ay + ah * 0.73 }
+            ];
+
+            // Más pilares destructibles / de cobertura en rejilla, lejos de los spawners
+            this.pillars = [];
+            const cols = [0.1, 0.36, 0.64, 0.9];
+            const rows = [0.12, 0.5, 0.88];
+            const pillarSpots = [];
+            for (const cx of cols) for (const cy of rows) pillarSpots.push([cx, cy]);
+            pillarSpots.push([0.5, 0.22], [0.5, 0.78], [0.08, 0.32], [0.92, 0.32], [0.08, 0.68], [0.92, 0.68]);
+            for (const [fx, fy] of pillarSpots) {
+                const px = ax + aw * fx;
+                const py = ay + ah * fy;
+                if (this.spawners.some(s => MathUtils.dist(px, py, s.x, s.y) < 130)) continue;
+                this.pillars.push(new Pillar(px, py, 32, true));
+            }
+
+            // Muchas más antorchas a lo largo de los muros perimetrales
+            this.torches = [];
+            const stepX = aw / 8;
+            for (let i = 0; i <= 8; i++) {
+                const tx = ax + 24 + (aw - 48) * (i / 8);
+                this.torches.push({ x: tx, y: ay + 20 });
+                this.torches.push({ x: tx, y: ay + ah - 20 });
+            }
+            const stepsY = 5;
+            for (let i = 1; i < stepsY; i++) {
+                const ty = ay + ah * (i / stepsY);
+                this.torches.push({ x: ax + 18, y: ty });
+                this.torches.push({ x: ax + aw - 18, y: ty });
+            }
+            // Antorchas interiores junto a los spawners
+            for (const s of this.spawners) {
+                this.torches.push({ x: s.x - 52, y: s.y - 34 });
+                this.torches.push({ x: s.x + 52, y: s.y - 34 });
+            }
+        }
+
+        // Reconstruir el suelo cacheado solo cuando cambia el nivel
+        if (!this.dungeonFloorCanvas || this.floorLevel !== this.level) {
+            this.floorLevel = this.level;
             this.buildDungeonFloorCanvas();
         }
     }
 
     buildDungeonFloorCanvas() {
         const offCanvas = document.createElement('canvas');
-        offCanvas.width = this.width;
-        offCanvas.height = this.height;
+        offCanvas.width = this.worldW;
+        offCanvas.height = this.worldH;
         const fctx = offCanvas.getContext('2d');
 
         const { x, y, w, h } = this.arena;
 
         // 1. Fondo exterior abisal oscuro
         fctx.fillStyle = '#06070a';
-        fctx.fillRect(0, 0, this.width, this.height);
+        fctx.fillRect(0, 0, this.worldW, this.worldH);
 
         // 2. Muro perimetral exterior de Deepslate (estilo Minecraft Stronghold)
         const wallThickness = 28;
@@ -3115,40 +3946,141 @@ class Game {
         this.dungeonFloorCanvas = offCanvas;
     }
 
-    startNewRun() {
+    // Reinicio centralizado y completo de la partida (nivel 1 desde cero, o nivel 2 conservando al jugador)
+    resetGame(targetLevel = 1) {
+        this.runId++; // invalida temporizadores pendientes (p. ej. la pantalla de victoria)
+        const keepPlayer = targetLevel === 2 && !!this.player;
+        this.level = targetLevel;
+
         this.ui.menuScreen.classList.add('hidden');
         this.ui.gameoverScreen.classList.add('hidden');
         this.ui.victoryScreen.classList.add('hidden');
         this.ui.bossHud.style.display = 'none';
 
         this.initArenaEnvironment();
-        this.player = new Player(this.width * 0.5, this.height * 0.5);
+        const cx = this.arena.x + this.arena.w * 0.5;
+        const cy = this.arena.y + this.arena.h * 0.5;
+
+        if (!keepPlayer) this.player = new Player(cx, cy);
+        const p = this.player;
+
+        // Restaurar al jugador: posición, vida y limpieza de efectos de estado
+        p.x = cx;
+        p.y = cy;
+        p.vx = p.vy = 0;
+        p.kbVx = p.kbVy = 0;
+        p.dead = false;
+        p.hitFlash = 0;
+        p.invulnTimer = 0;
+        p.isDashing = false;
+        p.dashTimer = 0;
+        p.dashCooldownTimer = 0;
+        p.isAttacking = false;
+        p.attackTimer = 0;
+        p.attackCooldownTimer = 0;
+        p.gunCooldownTimer = 0;
+        p.rifleCooldownTimer = 0;
+        p.muzzleFlash = 0;
+        p.rifleRecoil = 0;
+        p.damageBoostTimer = 0;
+        p.speedBoostTimer = 0;
+        p.scaleX = p.scaleY = 1;
+        p.afterimages = [];
+        p.slashTrails = [];
+        p.hitTargetsInSwing.clear();
+
+        if (targetLevel === 2) this.applyLevel2Powerup();
+        p.hp = p.maxHp;
+
+        // Limpiar todos los contenedores activos
         this.enemies = [];
         this.projectiles = [];
-        this.pickups = [];
         this.particles = [];
+        this.pickups = [];
         this.floatingTexts = [];
         this.boss = null;
 
+        // Temporizadores y banderas de transición
         this.currentWave = 1;
         this.enemiesKilledCount = 0;
         this.waveCooldown = 0;
         this.waveIntermission = false;
         this.waveTransitionTimer = 0;
+        this.bossIntroTimer = 0;
+        this.shakeIntensity = 0;
+        this.shakeTimer = 0;
         this.isPaused = false;
         this.gunDropped = false;
+
+        // Entradas: evitar teclas/clics "pegados" tras las pantallas de menú
+        this.keys = {};
+        this.mouse.down = false;
+
+        this.updateCamera(0, true);
+        this.syncMouseWorld();
         this.state = 'PLAYING';
+
+        if (targetLevel === 2) {
+            this.floatingTexts.push(new FloatingText(cx, cy - 70, 'NIVEL 2 - MODO POTENCIADO', '#fbbf24', 22, true));
+        }
 
         this.spawnWave(this.currentWave);
         this.updateHUD();
     }
 
+    // Reinicio completo desde el Nivel 1 (botones y tecla R)
+    startNewRun() {
+        this.resetGame(1);
+    }
+
+    goToLevel2() {
+        if (this.state !== 'VICTORY' || this.level !== 1) return;
+        this.resetGame(2);
+    }
+
+    // Power-up permanente del jugador al iniciar el Nivel 2 + desbloqueo del Rifle de Asalto
+    applyLevel2Powerup() {
+        const p = this.player;
+        if (!p.powered) {
+            p.powered = true;
+            p.maxHp = Math.round(p.maxHp * 1.5); // +50% vida máxima
+            p.dmgMult = 1.35;                    // +35% daño base en todas las armas
+            p.moveSpeedMult = 1.15;              // +15% velocidad de movimiento
+        }
+        if (!p.hasRifle) {
+            p.hasRifle = true;
+            p.currentWeapon = 'RIFLE';
+        }
+    }
+
+    configureVictoryScreen() {
+        const isL1 = this.level === 1;
+        this.ui.victoryTitle.textContent = isL1 ? '¡VICTORIA ÉPICA!' : '¡MAZMORRA CONQUISTADA!';
+        this.ui.victorySubtitle.textContent = isL1
+            ? 'EL PEPE MAESTRO HA SIDO DERROTADO'
+            : 'EL PEPE MAESTRO (NIVEL 2) HA CAÍDO';
+        this.ui.btnNextLevel.style.display = isL1 ? 'inline-block' : 'none';
+    }
+
     spawnWave(waveNum) {
-        const chaserCount = 3 + waveNum * 2;
-        const shooterCount = 1 + waveNum;
+        const isL2 = this.level === 2;
+        const hpWave = waveNum + (isL2 ? 2 : 0);
+        const chaserCount = (isL2 ? 4 : 3) + waveNum * 2;
+        const shooterCount = (isL2 ? 2 : 1) + waveNum;
+        const tankCount = isL2 ? waveNum : 0;
 
         const spawnPointAwayFromPlayer = () => {
             let sx, sy, tries = 0;
+            if (isL2 && this.spawners.length > 0) {
+                // En el mapa grande, las hordas emergen de los Mob Spawners
+                do {
+                    const sp = this.spawners[MathUtils.randInt(0, this.spawners.length - 1)];
+                    sx = sp.x + MathUtils.randRange(-40, 40);
+                    sy = sp.y + MathUtils.randRange(-40, 40);
+                    tries++;
+                } while (MathUtils.dist(sx, sy, this.player.x, this.player.y) < 300 && tries < 25);
+                return { x: sx, y: sy };
+            }
             do {
                 sx = MathUtils.randRange(this.arena.x + 45, this.arena.x + this.arena.w - 45);
                 sy = MathUtils.randRange(this.arena.y + 45, this.arena.y + this.arena.h - 45);
@@ -3159,29 +4091,40 @@ class Game {
 
         for (let i = 0; i < chaserCount; i++) {
             const pt = spawnPointAwayFromPlayer();
-            this.enemies.push(new Enemy(pt.x, pt.y, 'CHASER', waveNum));
+            this.enemies.push(new Enemy(pt.x, pt.y, 'CHASER', hpWave));
             this.spawnParticles(pt.x, pt.y, 10, '#f43f5e', 110, true);
         }
 
         for (let i = 0; i < shooterCount; i++) {
             const pt = spawnPointAwayFromPlayer();
-            this.enemies.push(new Enemy(pt.x, pt.y, 'SHOOTER', waveNum));
+            this.enemies.push(new Enemy(pt.x, pt.y, 'SHOOTER', hpWave));
             this.spawnParticles(pt.x, pt.y, 10, '#a855f7', 110, true);
         }
 
-        this.floatingTexts.push(new FloatingText(this.width * 0.5, this.height * 0.3, `¡OLEADA ${waveNum}!`, '#00f5d4', 24, true));
+        for (let i = 0; i < tankCount; i++) {
+            const pt = spawnPointAwayFromPlayer();
+            this.enemies.push(new Enemy(pt.x, pt.y, 'TANK', hpWave));
+            this.spawnParticles(pt.x, pt.y, 16, '#f97316', 140, true);
+        }
+
+        this.floatingTexts.push(new FloatingText(this.camera.x + this.width * 0.5, this.camera.y + this.height * 0.3, `¡OLEADA ${waveNum}!`, '#00f5d4', 24, true));
     }
 
     onEnemyKilled(enemy) {
         this.enemiesKilledCount++;
-        this.spawnParticles(enemy.x, enemy.y, 18, enemy.archetype === 'CHASER' ? '#f43f5e' : '#a855f7', 190, true);
+        this.spawnParticles(enemy.x, enemy.y, 18, enemy.archetype === 'TANK' ? '#f97316' : (enemy.archetype === 'CHASER' ? '#f43f5e' : '#a855f7'), 190, true);
 
         // Condición Estricta de Drop de Pistola:
         // Solo si el jugador NO la ha desbloqueado Y NO hay ya una pistola tirada en el suelo
         const playerHasGun = this.player && this.player.hasGun;
         const gunOnGround = this.pickups.some(p => p instanceof GunPickup && !p.dead);
 
-        if (enemy.archetype === 'SHOOTER' && !playerHasGun && !gunOnGround) {
+        // Rifle de Asalto: 100% de drop al caer el primer Tanque (sin duplicados: misma regla estricta que la pistola)
+        const rifleOnGround = this.pickups.some(p => p instanceof GunPickup && p.kind === 'RIFLE' && !p.dead);
+        if (enemy.archetype === 'TANK' && this.player && !this.player.hasRifle && !rifleOnGround) {
+            this.pickups.push(new GunPickup(enemy.x, enemy.y, 'RIFLE'));
+            this.floatingTexts.push(new FloatingText(enemy.x, enemy.y - 25, '¡DROP DE RIFLE DE ASALTO!', '#fbbf24', 16, true));
+        } else if (enemy.archetype === 'SHOOTER' && !playerHasGun && !gunOnGround) {
             this.gunDropped = true;
             this.pickups.push(new GunPickup(enemy.x, enemy.y));
             this.floatingTexts.push(new FloatingText(enemy.x, enemy.y - 25, '¡DROP DE PISTOLA!', '#38bdf8', 16, true));
@@ -3204,7 +4147,7 @@ class Game {
         this.projectiles = [];
 
         // Instanciar a El Pepe Maestro en la parte superior central
-        this.boss = new Boss(this.width * 0.5, this.arena.y + 130);
+        this.boss = new Boss(this.arena.x + this.arena.w * 0.5, this.arena.y + 130, this.level);
         this.spawnParticles(this.boss.x, this.boss.y, 50, '#fbbf24', 260, true);
 
         this.ui.bossHud.style.display = 'block';
@@ -3218,8 +4161,11 @@ class Game {
         this.spawnParticles(boss.x, boss.y, 60, '#ef4444', 280, true);
         this.projectiles = [];
 
+        const runId = this.runId;
         setTimeout(() => {
+            if (runId !== this.runId || this.state === 'GAMEOVER') return; // ignorar si se reinició la partida
             this.state = 'VICTORY';
+            this.configureVictoryScreen();
             this.ui.victoryStats.textContent = `Esbirros Abatidos: ${this.enemiesKilledCount} | Salud Restante: ${this.player.hp}/${this.player.maxHp}`;
             this.ui.victoryScreen.classList.remove('hidden');
         }, 900);
@@ -3282,8 +4228,9 @@ class Game {
 
         // Chispas de fuego pixeladas del Mob Spawner central
         if (this.state === 'PLAYING' && Math.random() < 0.3) {
-            const spawnerX = this.arena.x + this.arena.w * 0.5;
-            const spawnerY = this.arena.y + this.arena.h * 0.5;
+            const spSel = this.spawners[MathUtils.randInt(0, this.spawners.length - 1)];
+            const spawnerX = spSel.x;
+            const spawnerY = spSel.y;
             this.particles.push(new Particle(
                 spawnerX + MathUtils.randRange(-14, 14),
                 spawnerY + MathUtils.randRange(-14, 14),
@@ -3379,6 +4326,7 @@ class Game {
     updateHUD() {
         if (!this.player) return;
         const hpPct = MathUtils.clamp((this.player.hp / this.player.maxHp) * 100, 0, 100);
+        if (this.ui.levelBadge) this.ui.levelBadge.style.display = (this.level === 2 && this.player.powered) ? 'block' : 'none';
         this.ui.hpBar.style.width = `${hpPct}%`;
         this.ui.hpText.textContent = `${this.player.hp} / ${this.player.maxHp}`;
 
@@ -3395,7 +4343,10 @@ class Game {
 
         // Indicador de Arma en el HUD
         if (this.ui.weaponName) {
-            if (this.player.currentWeapon === 'GUN') {
+            if (this.player.currentWeapon === 'RIFLE') {
+                this.ui.weaponName.textContent = '[3] RIFLE DE ASALTO';
+                this.ui.weaponName.style.color = '#fbbf24';
+            } else if (this.player.currentWeapon === 'GUN') {
                 this.ui.weaponName.textContent = '[2] PISTOLA';
                 this.ui.weaponName.style.color = '#38bdf8';
             } else {
@@ -3403,7 +4354,17 @@ class Game {
                 this.ui.weaponName.style.color = '#00f5d4';
             }
             if (this.ui.weaponHint) {
-                this.ui.weaponHint.textContent = this.player.hasGun ? '[1 / 2 / Q]' : '[1]';
+                const cw = this.player.currentWeapon;
+                const slot = (n, label, owned, key) => {
+                    const active = cw === key;
+                    const color = !owned ? '#475569' : (active ? '#00f5d4' : '#94a3b8');
+                    const border = active ? '1px solid #00f5d4' : '1px solid #334155';
+                    return `<span style="display:inline-block;margin-right:4px;padding:1px 5px;border:${border};color:${color};opacity:${owned ? 1 : 0.5};">${n}:${label}${owned ? '' : ' 🔒'}</span>`;
+                };
+                this.ui.weaponHint.innerHTML =
+                    slot(1, 'ESPADA', true, 'SWORD') +
+                    slot(2, 'PISTOLA', this.player.hasGun, 'GUN') +
+                    slot(3, 'RIFLE', this.player.hasRifle, 'RIFLE') + ' [Q]';
             }
         }
 
@@ -3418,10 +4379,10 @@ class Game {
             const bossPct = MathUtils.clamp((this.boss.hp / this.boss.maxHp) * 100, 0, 100);
             this.ui.bossHpBar.style.width = `${bossPct}%`;
             if (this.boss.enraged) {
-                this.ui.bossTitle.textContent = 'EL PEPE MAESTRO - ¡ENFURECIDO!';
+                this.ui.bossTitle.textContent = this.level === 2 ? 'EL PEPE MAESTRO (NIVEL 2) - ¡ENFURECIDO!' : 'EL PEPE MAESTRO - ¡ENFURECIDO!';
                 this.ui.bossTitle.style.color = '#fbbf24';
             } else {
-                this.ui.bossTitle.textContent = 'EL PEPE MAESTRO - SEÑOR DE LA MAZMORRA';
+                this.ui.bossTitle.textContent = this.level === 2 ? 'EL PEPE MAESTRO (NIVEL 2) - SEÑOR SUPREMO' : 'EL PEPE MAESTRO - SEÑOR DE LA MAZMORRA';
                 this.ui.bossTitle.style.color = '#fca5a5';
             }
         }
@@ -3432,7 +4393,7 @@ class Game {
 
         // 1. Dibujar el suelo de la mazmorra y muros de Deepslate cacheados
         if (this.dungeonFloorCanvas) {
-            ctx.drawImage(this.dungeonFloorCanvas, 0, 0);
+            ctx.drawImage(this.dungeonFloorCanvas, this.camera.x, this.camera.y, this.width, this.height, this.camera.x, this.camera.y, this.width, this.height);
         } else {
             ctx.fillStyle = '#06070a';
             ctx.fillRect(0, 0, this.width, this.height);
@@ -3441,8 +4402,9 @@ class Game {
         }
 
         // 2. Mob Spawner en el Centro de la Arena (Minecraft Dungeon Mob Spawner)
-        const spawnerX = x + w * 0.5;
-        const spawnerY = y + h * 0.5;
+        for (const sp of this.spawners) {
+        const spawnerX = sp.x;
+        const spawnerY = sp.y;
         const sSize = 46;
         const hs = sSize * 0.5;
 
@@ -3507,8 +4469,12 @@ class Game {
         ctx.fillRect(spawnerX - hs + 1, spawnerY + hs - crSize + 1, 2, 2);
         ctx.fillRect(spawnerX + hs - crSize + 1, spawnerY + hs - crSize + 1, 2, 2);
 
+        }
+
         // 3. Antorchas de Madera en Paredes e Iluminación Radial Cálida
+        const cam = this.camera;
         for (const t of this.torches) {
+            if (t.x < cam.x - 220 || t.x > cam.x + this.width + 220 || t.y < cam.y - 220 || t.y > cam.y + this.height + 220) continue;
             const flicker = Math.sin(this.globalTime * 10 + t.x * 0.1) * 6 + Math.cos(this.globalTime * 18 + t.y * 0.1) * 4;
             const lightRadius = 145 + flicker;
 
@@ -3548,8 +4514,8 @@ class Game {
     }
 
     drawFortniteInterlude(ctx) {
-        const cx = this.arena.x + this.arena.w * 0.5;
-        const cy = this.arena.y + this.arena.h * 0.5;
+        const cx = this.camera.x + this.width * 0.5;
+        const cy = this.camera.y + this.height * 0.5;
 
         // 1. Foco de luz disco / neón en el suelo bajo la silueta
         ctx.save();
@@ -3706,7 +4672,7 @@ class Game {
 
         // 4. Cartel grande en pantalla: "¡RONDA COMPLETADA! SIGUIENTE RONDA EN: X.Xs"
         ctx.save();
-        const bannerY = this.arena.y + 75;
+        const bannerY = Math.max(this.arena.y, this.camera.y) + 75;
         const bw = 560;
         const bh = 68;
 
@@ -3750,7 +4716,9 @@ class Game {
             ctx.translate(dx, dy);
         }
 
-        // 1. Nivel y Iluminación de Antorchas
+        // 1. Nivel y Iluminación de Antorchas (espacio de mundo con cámara dinámica)
+        ctx.save();
+        ctx.translate(-this.camera.x, -this.camera.y);
         this.drawArenaDungeon(ctx);
 
         if (this.state !== 'MENU') {
@@ -3786,6 +4754,8 @@ class Game {
         for (const p of this.particles) p.draw(ctx);
         for (const ft of this.floatingTexts) ft.draw(ctx);
 
+        ctx.restore(); // fin del espacio de mundo
+
         // 9. Aviso Cinemático durante BOSS_INTRO
         if (this.state === 'BOSS_INTRO') {
             ctx.save();
@@ -3813,6 +4783,11 @@ class Game {
             ctx.shadowColor = '#ef4444';
             ctx.fillText('EL PEPE MAESTRO', this.width * 0.5, this.height * 0.36 + 92);
             ctx.restore();
+        }
+
+        // 9.5. Controles Táctiles Virtuales en Móviles (Joystick + Botones)
+        if (this.isTouchDevice && (this.state === 'PLAYING' || this.state === 'BOSS_INTRO' || this.isPaused)) {
+            this.drawTouchControls(ctx);
         }
 
         // 10. Superposición de Pausa (Tecla ESC)
@@ -3862,14 +4837,14 @@ class Game {
             ctx.fillStyle = '#94a3b8';
             ctx.fillText('WASD / Flechas : Moverse  |  Espacio / Shift : Dash', this.width * 0.5, py + 138);
             ctx.fillStyle = '#38bdf8';
-            ctx.fillText('[ 1 ] / [ 2 ] o [ Q ] / Rueda : Cambiar Arma', this.width * 0.5, py + 166);
+            ctx.fillText('[ 1 ] [ 2 ] [ 3 ] o [ Q ] / Rueda : Cambiar Arma', this.width * 0.5, py + 166);
             ctx.fillStyle = '#fbbf24';
-            ctx.fillText('Click Izq / Tecla J : Atacar / Disparar', this.width * 0.5, py + 192);
+            ctx.fillText('Click Izq / Tecla J : Atacar / Disparar (Rifle: mantener = ráfaga)', this.width * 0.5, py + 192);
 
             // Botón / Instrucción para continuar
             ctx.font = 'bold 15px "Courier New", monospace';
             ctx.fillStyle = '#00f5d4';
-            ctx.fillText('[ Presiona ESC o Haz Click para Reanudar ]', this.width * 0.5, py + 236);
+            ctx.fillText(this.isTouchDevice ? '[ Toca la Pantalla para Reanudar ]' : '[ Presiona ESC o Haz Click para Reanudar ]', this.width * 0.5, py + 236);
 
             ctx.restore();
         }
@@ -3877,18 +4852,253 @@ class Game {
         ctx.restore();
     }
 
+    drawTouchControls(ctx) {
+        ctx.save();
+
+        // Botón de Pausa en el HUD (Esquina Superior Derecha - 45x45px)
+        const pb = this.touchControls.buttons.pause;
+        ctx.save();
+        ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+        ctx.strokeStyle = this.isPaused ? '#ef4444' : '#00f5d4';
+        ctx.lineWidth = 2.5;
+        ctx.shadowBlur = 10;
+        ctx.shadowColor = this.isPaused ? '#ef4444' : '#00f5d4';
+        ctx.beginPath();
+        if (ctx.roundRect) ctx.roundRect(pb.x, pb.y, pb.w, pb.h, 6);
+        else ctx.rect(pb.x, pb.y, pb.w, pb.h);
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.fillStyle = this.isPaused ? '#ef4444' : '#00f5d4';
+        ctx.shadowBlur = 0;
+        ctx.fillRect(pb.x + 13, pb.y + 11, 5, 23);
+        ctx.fillRect(pb.x + 27, pb.y + 11, 5, 23);
+        ctx.restore();
+
+        if (this.isPaused) {
+            ctx.restore();
+            return;
+        }
+
+        // 1. Joystick Virtual de Movimiento (Mitad Izquierda)
+        const js = this.touchControls.joystick;
+        const bx = js.baseX;
+        const by = js.baseY;
+
+        // Base circular semitransparente (radio: 60px)
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(bx, by, js.radius, 0, Math.PI * 2);
+        ctx.fillStyle = js.active ? 'rgba(15, 23, 42, 0.65)' : 'rgba(15, 23, 42, 0.40)';
+        ctx.fill();
+        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = js.active ? '#00f5d4' : 'rgba(0, 245, 212, 0.35)';
+        if (js.active) {
+            ctx.shadowBlur = 14;
+            ctx.shadowColor = '#00f5d4';
+        }
+        ctx.stroke();
+
+        // Guías de dirección dentro de la base
+        ctx.beginPath();
+        ctx.strokeStyle = 'rgba(148, 163, 184, 0.25)';
+        ctx.lineWidth = 1.5;
+        ctx.moveTo(bx - 36, by); ctx.lineTo(bx + 36, by);
+        ctx.moveTo(bx, by - 36); ctx.lineTo(bx, by + 36);
+        ctx.stroke();
+
+        // Stick interno (radio: 25px) que sigue el dedo hasta el borde
+        const sx = js.active ? js.stickX : bx;
+        const sy = js.active ? js.stickY : by;
+        ctx.beginPath();
+        ctx.arc(sx, sy, js.stickRadius, 0, Math.PI * 2);
+        ctx.fillStyle = js.active ? 'rgba(0, 245, 212, 0.85)' : 'rgba(0, 245, 212, 0.30)';
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.strokeStyle = '#ffffff';
+        ctx.stroke();
+        ctx.restore();
+
+        // 2. Botón de Cambio de Arma (radio: 30px)
+        const wb = this.touchControls.buttons.weapon;
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(wb.x, wb.y, wb.r, 0, Math.PI * 2);
+        ctx.fillStyle = wb.down ? 'rgba(251, 191, 36, 0.55)' : 'rgba(15, 23, 42, 0.78)';
+        ctx.fill();
+        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = '#fbbf24';
+        ctx.shadowBlur = wb.down ? 16 : 8;
+        ctx.shadowColor = '#fbbf24';
+        ctx.stroke();
+
+        ctx.shadowBlur = 0;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        let wepIcon = '⚔';
+        if (this.player) {
+            if (this.player.currentWeapon === 'GUN') wepIcon = '🔫';
+            else if (this.player.currentWeapon === 'RIFLE') wepIcon = '⚡';
+        }
+        ctx.font = '22px sans-serif';
+        ctx.fillText(wepIcon, wb.x, wb.y - 2);
+        ctx.font = 'bold 9px "Courier New", monospace';
+        ctx.fillStyle = '#fbbf24';
+        ctx.fillText('ARMA', wb.x, wb.y + 17);
+        ctx.restore();
+
+        // 3. Botón de Dash (radio: 32px) con enfriamiento visual progresivo
+        const db = this.touchControls.buttons.dash;
+        ctx.save();
+        const dashCd = this.player ? this.player.dashCooldown : 1.05;
+        const dashCdTimer = this.player ? this.player.dashCooldownTimer : 0;
+        const dashReady = dashCdTimer <= 0;
+        const dashPct = dashReady ? 1 : Math.max(0, 1 - (dashCdTimer / dashCd));
+
+        ctx.beginPath();
+        ctx.arc(db.x, db.y, db.r, 0, Math.PI * 2);
+        ctx.fillStyle = db.down ? 'rgba(0, 245, 212, 0.55)' : 'rgba(15, 23, 42, 0.78)';
+        ctx.fill();
+        ctx.lineWidth = 2.5;
+        ctx.strokeStyle = dashReady ? '#00f5d4' : '#475569';
+        if (dashReady) {
+            ctx.shadowBlur = 12;
+            ctx.shadowColor = '#00f5d4';
+        }
+        ctx.stroke();
+
+        // Relleno visual de Cooldown
+        if (!dashReady) {
+            ctx.save();
+            ctx.beginPath();
+            ctx.moveTo(db.x, db.y);
+            ctx.arc(db.x, db.y, db.r - 2, -Math.PI / 2 + dashPct * Math.PI * 2, -Math.PI / 2 + Math.PI * 2);
+            ctx.closePath();
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.70)';
+            ctx.fill();
+
+            ctx.beginPath();
+            ctx.arc(db.x, db.y, db.r, -Math.PI / 2, -Math.PI / 2 + dashPct * Math.PI * 2);
+            ctx.lineWidth = 3.5;
+            ctx.strokeStyle = '#00f5d4';
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        ctx.shadowBlur = 0;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.font = '24px sans-serif';
+        ctx.fillText('⚡', db.x, db.y - 2);
+        ctx.font = 'bold 9px "Courier New", monospace';
+        ctx.fillStyle = dashReady ? '#00f5d4' : '#94a3b8';
+        ctx.fillText('DASH', db.x, db.y + 18);
+        ctx.restore();
+
+        // 4. Botón Principal de Ataque / Fuego Continuo (radio: 45px)
+        const ab = this.touchControls.buttons.attack;
+        ctx.save();
+        const atkHeld = this.touchControls.isAttackTouchHeld;
+        let atkColor = '#ef4444';
+        if (this.player) {
+            if (this.player.currentWeapon === 'SWORD') atkColor = '#00f5d4';
+            else if (this.player.currentWeapon === 'GUN') atkColor = '#38bdf8';
+            else if (this.player.currentWeapon === 'RIFLE') atkColor = '#fbbf24';
+        }
+
+        ctx.beginPath();
+        ctx.arc(ab.x, ab.y, ab.r, 0, Math.PI * 2);
+        if (atkHeld) {
+            if (this.player && this.player.currentWeapon === 'SWORD') ctx.fillStyle = 'rgba(0, 245, 212, 0.45)';
+            else if (this.player && this.player.currentWeapon === 'GUN') ctx.fillStyle = 'rgba(56, 189, 248, 0.45)';
+            else if (this.player && this.player.currentWeapon === 'RIFLE') ctx.fillStyle = 'rgba(251, 191, 36, 0.45)';
+            else ctx.fillStyle = 'rgba(239, 68, 68, 0.45)';
+        } else {
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.82)';
+        }
+        ctx.fill();
+        ctx.lineWidth = 3.5;
+        ctx.strokeStyle = atkColor;
+        ctx.shadowBlur = atkHeld ? 22 : 10;
+        ctx.shadowColor = atkColor;
+        ctx.stroke();
+
+        // Indicador de apuntado por arrastre (Twin-Stick) o Auto-Aim
+        if (ab.down && ab.hasDragged) {
+            const dragLen = 32;
+            const px = ab.x + Math.cos(ab.aimAngle) * dragLen;
+            const py = ab.y + Math.sin(ab.aimAngle) * dragLen;
+            ctx.beginPath();
+            ctx.moveTo(ab.x, ab.y);
+            ctx.lineTo(px, py);
+            ctx.lineWidth = 3.5;
+            ctx.strokeStyle = '#ffffff';
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(px, py, 6, 0, Math.PI * 2);
+            ctx.fillStyle = '#ffffff';
+            ctx.fill();
+        } else {
+            ctx.shadowBlur = 0;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.font = '28px sans-serif';
+            ctx.fillText('🎯', ab.x, ab.y - 4);
+            ctx.font = '900 10px "Courier New", monospace';
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText('ATACAR', ab.x, ab.y + 20);
+        }
+        ctx.restore();
+
+        ctx.restore();
+    }
+
+    // Cámara suave centrada en el jugador (solo se mueve si el mundo es mayor que la pantalla)
+    updateCamera(dt, snap = false) {
+        const p = this.player;
+        const maxX = Math.max(0, this.worldW - this.width);
+        const maxY = Math.max(0, this.worldH - this.height);
+        if (!p || (maxX === 0 && maxY === 0)) {
+            this.camera.x = 0;
+            this.camera.y = 0;
+            return;
+        }
+        const tx = MathUtils.clamp(p.x - this.width * 0.5, 0, maxX);
+        const ty = MathUtils.clamp(p.y - this.height * 0.5, 0, maxY);
+        const k = snap ? 1 : 1 - Math.exp(-7 * dt);
+        this.camera.x += (tx - this.camera.x) * k;
+        this.camera.y += (ty - this.camera.y) * k;
+    }
+
+    syncMouseWorld() {
+        this.mouse.worldX = this.mouse.x + this.camera.x;
+        this.mouse.worldY = this.mouse.y + this.camera.y;
+    }
+
     loop(timestamp) {
+        // Reprogramar SIEMPRE primero (una única vez por frame): el bucle nunca se detiene
+        // ni se duplica, aunque update()/draw() lancen una excepción.
+        requestAnimationFrame((t) => this.loop(t));
+
         // Cálculo estricto de deltaTime limitado a 0.05s para evitar saltos por pérdida de foco
         const rawDt = (timestamp - this.lastTime) / 1000;
         const dt = Math.min(0.05, Math.max(0.0001, rawDt));
         this.lastTime = timestamp;
 
-        if (!this.isPaused) {
-            this.update(dt);
+        try {
+            this.syncMouseWorld();
+            if (!this.isPaused) {
+                this.update(dt);
+                this.updateCamera(dt);
+                this.syncMouseWorld();
+            }
+            this.draw();
+        } catch (err) {
+            console.error('Error en el bucle principal (recuperado):', err);
+            if (this.ctx.reset) this.ctx.reset();
+            else this.ctx.setTransform(1, 0, 0, 1, 0, 0);
         }
-        this.draw();
-
-        requestAnimationFrame((t) => this.loop(t));
     }
 }
 
