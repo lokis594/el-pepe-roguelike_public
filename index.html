@@ -282,6 +282,74 @@
             transform: scale(0.96);
             background: rgba(0, 245, 212, 0.25);
         }
+        .menu-view {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            width: 100%;
+        }
+        #menu-main-view {
+            gap: 16px;
+        }
+        #menu-main-view .btn-action {
+            width: 290px;
+            max-width: 90vw;
+        }
+        .btn-back {
+            border-color: #64748b !important;
+            color: #cbd5e1 !important;
+            padding: 10px 32px !important;
+            font-size: 15px !important;
+            box-shadow: 0 0 10px rgba(100, 116, 139, 0.2) !important;
+        }
+        .btn-back:hover {
+            background: #475569 !important;
+            color: #ffffff !important;
+            border-color: #94a3b8 !important;
+            box-shadow: 0 0 20px rgba(148, 163, 184, 0.5) !important;
+        }
+        .options-box {
+            width: 100%;
+            max-width: 480px;
+            box-sizing: border-box;
+        }
+        .option-item {
+            margin-bottom: 22px;
+            text-align: left;
+        }
+        input[type="range"]#slider-volume {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 100%;
+            height: 8px;
+            border-radius: 4px;
+            background: #1e293b;
+            outline: none;
+            border: 1px solid #475569;
+            box-sizing: border-box;
+            cursor: pointer;
+        }
+        input[type="range"]#slider-volume::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #00f5d4;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(0, 245, 212, 0.8);
+            border: 2px solid #060709;
+        }
+        input[type="range"]#slider-volume::-moz-range-thumb {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background: #00f5d4;
+            cursor: pointer;
+            box-shadow: 0 0 10px rgba(0, 245, 212, 0.8);
+            border: 2px solid #060709;
+        }
         .danger-title {
             color: #ef4444;
             text-shadow: 0 0 25px rgba(239, 68, 68, 0.8);
@@ -395,6 +463,11 @@
             .control-row { font-size: 10px !important; margin-bottom: 5px !important; }
             .btn-action { padding: 9px 22px !important; font-size: 14px !important; }
             .minecraft-splash { font-size: 12px !important; right: -16px !important; bottom: -4px !important; }
+            #menu-main-view { gap: 10px !important; }
+            #menu-main-view .btn-action { width: 240px !important; padding: 8px 18px !important; font-size: 13px !important; }
+            .btn-back { padding: 8px 24px !important; font-size: 13px !important; }
+            .options-box { padding: 12px 18px !important; margin-bottom: 12px !important; }
+            .option-item { margin-bottom: 14px !important; }
         }
         /* Dispositivos Móviles en Horizontal (Landscape) */
         @media (max-height: 520px) {
@@ -443,6 +516,12 @@
                 right: -12px !important;
                 bottom: -3px !important;
             }
+            #menu-main-view { gap: 6px !important; }
+            #menu-main-view .btn-action { width: 220px !important; padding: 5px 14px !important; font-size: 11px !important; letter-spacing: 1px !important; }
+            .options-box { padding: 6px 14px !important; margin-bottom: 6px !important; max-width: 440px !important; width: 96% !important; }
+            .options-box h3 { font-size: 10px !important; margin-bottom: 3px !important; padding-bottom: 2px !important; }
+            .option-item { margin-bottom: 6px !important; }
+            .btn-back { padding: 4px 16px !important; font-size: 10px !important; }
         }
     </style>
 </head>
@@ -498,34 +577,69 @@
             <div class="minecraft-splash">hecho por lokis594</div>
         </div>
         <div class="subtitle">LA GUARIDA DE EL PEPE MAESTRO</div>
-        <div class="controls-box">
-            <h3>MANUAL DE COMBATE ROGUELIKE</h3>
-            <div class="control-row">
-                <span>Movimiento 8-Direcciones</span>
-                <span class="key-tag">WASD / FLECHAS</span>
-            </div>
-            <div class="control-row">
-                <span>Ataque / Disparo</span>
-                <span class="key-tag">CLICK IZQ / TECLA J</span>
-            </div>
-            <div class="control-row">
-                <span>Dash Evasivo (Con I-Frames)</span>
-                <span class="key-tag">ESPACIO / SHIFT</span>
-            </div>
-            <div class="control-row">
-                <span>Cambiar de Arma</span>
-                <span class="key-tag">1 / 2 / 3 / Q / RUEDA</span>
-            </div>
-            <div class="control-row">
-                <span>Pausar Partida</span>
-                <span class="key-tag">ESCAPE (ESC)</span>
-            </div>
-            <div class="control-row">
-                <span>Peligro Final</span>
-                <span class="key-tag" style="color:#f87171;">PERMADEATH</span>
-            </div>
+
+        <!-- Vista Principal de Botones -->
+        <div id="menu-main-view" class="menu-view">
+            <button id="btn-start" class="btn-action">ENTRAR A LA GUARIDA</button>
+            <button id="btn-controls" class="btn-action">CONTROLES</button>
+            <button id="btn-options" class="btn-action">OPCIONES</button>
         </div>
-        <button id="btn-start" class="btn-action">ENTRAR A LA GUARIDA</button>
+
+        <!-- Submenú CONTROLES -->
+        <div id="menu-controls-view" class="menu-view hidden">
+            <div class="controls-box">
+                <h3>MANUAL DE COMBATE ROGUELIKE</h3>
+                <div class="control-row">
+                    <span>Movimiento 8-Direcciones</span>
+                    <span class="key-tag">WASD / FLECHAS</span>
+                </div>
+                <div class="control-row">
+                    <span>Ataque / Disparo</span>
+                    <span class="key-tag">CLICK IZQ / TECLA J</span>
+                </div>
+                <div class="control-row">
+                    <span>Dash Evasivo (Con I-Frames)</span>
+                    <span class="key-tag">ESPACIO / SHIFT</span>
+                </div>
+                <div class="control-row">
+                    <span>Cambiar de Arma</span>
+                    <span class="key-tag">1 / 2 / 3 / Q / RUEDA</span>
+                </div>
+                <div class="control-row">
+                    <span>Pausar Partida</span>
+                    <span class="key-tag">ESCAPE (ESC)</span>
+                </div>
+                <div class="control-row">
+                    <span>Peligro Final</span>
+                    <span class="key-tag" style="color:#f87171;">PERMADEATH</span>
+                </div>
+            </div>
+            <button id="btn-back-controls" class="btn-action btn-back">ATRÁS</button>
+        </div>
+
+        <!-- Submenú OPCIONES -->
+        <div id="menu-options-view" class="menu-view hidden">
+            <div class="controls-box options-box">
+                <h3>OPCIONES DE CONFIGURACIÓN</h3>
+                <div class="option-item">
+                    <div style="display:flex; justify-content:space-between; margin-bottom:8px; font-size:13px; font-weight:bold; color:#00f5d4;">
+                        <span>VOLUMEN GENERAL</span>
+                        <span id="volume-val-text">80%</span>
+                    </div>
+                    <input type="range" id="slider-volume" min="0" max="100" value="80">
+                </div>
+                <div class="option-item" style="margin-bottom: 6px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:13px;">
+                        <span style="font-weight:bold; color:#e2e8f0;">MODO BAJO RENDIMIENTO</span>
+                        <button id="btn-toggle-lowspec" class="btn-action" style="padding: 6px 14px; font-size: 12px; letter-spacing: 1px; border-width: 1px;">DESACTIVADO</button>
+                    </div>
+                    <div style="font-size: 11px; color: #94a3b8; font-style: italic;">
+                        Activar únicamente en caso de experimentar bajos FPS
+                    </div>
+                </div>
+            </div>
+            <button id="btn-back-options" class="btn-action btn-back">ATRÁS</button>
+        </div>
     </div>
 
     <!-- Game Over Screen -->
@@ -563,6 +677,12 @@
 class SoundManager {
     constructor() {
         this.ctx = null;
+        this.masterGain = null;
+        let savedVol = null;
+        try {
+            savedVol = typeof localStorage !== 'undefined' ? localStorage.getItem('pepe_master_volume') : null;
+        } catch(e) {}
+        this.masterVolume = savedVol !== null ? Math.max(0, Math.min(1, parseFloat(savedVol))) : 0.8;
     }
 
     init() {
@@ -572,14 +692,43 @@ class SoundManager {
                 this.ctx = new AudioCtx();
             }
         }
+        if (this.ctx && !this.masterGain) {
+            this.masterGain = this.ctx.createGain();
+            this.masterGain.gain.setValueAtTime(this.masterVolume, this.ctx.currentTime);
+            this.masterGain.connect(this.ctx.destination);
+        }
         if (this.ctx && this.ctx.state === 'suspended') {
             this.ctx.resume().catch(() => {});
         }
     }
 
+    setVolume(vol) {
+        this.masterVolume = Math.max(0, Math.min(1, vol));
+        if (this.ctx && this.masterGain) {
+            this.masterGain.gain.setValueAtTime(this.masterVolume, this.ctx.currentTime);
+        }
+        try {
+            if (typeof localStorage !== 'undefined') {
+                localStorage.setItem('pepe_master_volume', this.masterVolume.toString());
+            }
+        } catch(e) {}
+    }
+
+    getMasterNode() {
+        if (!this.ctx) return null;
+        if (!this.masterGain) {
+            this.masterGain = this.ctx.createGain();
+            this.masterGain.gain.setValueAtTime(this.masterVolume, this.ctx.currentTime);
+            this.masterGain.connect(this.ctx.destination);
+        }
+        return this.masterGain;
+    }
+
     // Tajo de espada: Barrido rápido de frecuencia (sawtooth corto de 120ms)
     playSwordSlash() {
         if (!this.ctx) return;
+        const dest = this.getMasterNode();
+        if (!dest) return;
         try {
             const now = this.ctx.currentTime;
             const osc = this.ctx.createOscillator();
@@ -590,7 +739,7 @@ class SoundManager {
             gain.gain.setValueAtTime(0.24, now);
             gain.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
             osc.connect(gain);
-            gain.connect(this.ctx.destination);
+            gain.connect(dest);
             osc.start(now);
             osc.stop(now + 0.13);
         } catch(e) {}
@@ -599,6 +748,8 @@ class SoundManager {
     // Disparo de pistola: Pulso agudo descendente (square de 800Hz a 150Hz en 100ms)
     playGunshot() {
         if (!this.ctx) return;
+        const dest = this.getMasterNode();
+        if (!dest) return;
         try {
             const now = this.ctx.currentTime;
             const osc = this.ctx.createOscillator();
@@ -609,7 +760,7 @@ class SoundManager {
             gain.gain.setValueAtTime(0.28, now);
             gain.gain.exponentialRampToValueAtTime(0.001, now + 0.10);
             osc.connect(gain);
-            gain.connect(this.ctx.destination);
+            gain.connect(dest);
             osc.start(now);
             osc.stop(now + 0.11);
         } catch(e) {}
@@ -618,6 +769,8 @@ class SoundManager {
     // Ráfaga de rifle de asalto: chasquido percusivo seco (ruido filtrado + golpe grave corto)
     playRifleShot() {
         if (!this.ctx) return;
+        const dest = this.getMasterNode();
+        if (!dest) return;
         try {
             const now = this.ctx.currentTime;
             const len = Math.floor(this.ctx.sampleRate * 0.05);
@@ -634,7 +787,7 @@ class SoundManager {
             ng.gain.exponentialRampToValueAtTime(0.001, now + 0.05);
             noise.connect(hp);
             hp.connect(ng);
-            ng.connect(this.ctx.destination);
+            ng.connect(dest);
             noise.start(now);
 
             const osc = this.ctx.createOscillator();
@@ -645,7 +798,7 @@ class SoundManager {
             og.gain.setValueAtTime(0.14, now);
             og.gain.exponentialRampToValueAtTime(0.001, now + 0.045);
             osc.connect(og);
-            og.connect(this.ctx.destination);
+            og.connect(dest);
             osc.start(now);
             osc.stop(now + 0.05);
         } catch(e) {}
@@ -654,6 +807,8 @@ class SoundManager {
     // Paso pesado del Coloso: golpe sordo grave
     playHeavyStep() {
         if (!this.ctx) return;
+        const dest = this.getMasterNode();
+        if (!dest) return;
         try {
             const now = this.ctx.currentTime;
             const osc = this.ctx.createOscillator();
@@ -664,7 +819,7 @@ class SoundManager {
             gain.gain.setValueAtTime(0.3, now);
             gain.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
             osc.connect(gain);
-            gain.connect(this.ctx.destination);
+            gain.connect(dest);
             osc.start(now);
             osc.stop(now + 0.2);
         } catch(e) {}
@@ -673,6 +828,8 @@ class SoundManager {
     // Impacto / Daño a enemigo: Golpe grave corto (triangle a 120Hz)
     playEnemyHit() {
         if (!this.ctx) return;
+        const dest = this.getMasterNode();
+        if (!dest) return;
         try {
             const now = this.ctx.currentTime;
             const osc = this.ctx.createOscillator();
@@ -683,7 +840,7 @@ class SoundManager {
             gain.gain.setValueAtTime(0.25, now);
             gain.gain.exponentialRampToValueAtTime(0.001, now + 0.08);
             osc.connect(gain);
-            gain.connect(this.ctx.destination);
+            gain.connect(dest);
             osc.start(now);
             osc.stop(now + 0.09);
         } catch(e) {}
@@ -692,6 +849,8 @@ class SoundManager {
     // Daño recibido por el jugador: Sonido distorsionado de alerta grave
     playPlayerHurt() {
         if (!this.ctx) return;
+        const dest = this.getMasterNode();
+        if (!dest) return;
         try {
             const now = this.ctx.currentTime;
             const osc1 = this.ctx.createOscillator();
@@ -707,7 +866,7 @@ class SoundManager {
             gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
             osc1.connect(gain);
             osc2.connect(gain);
-            gain.connect(this.ctx.destination);
+            gain.connect(dest);
             osc1.start(now);
             osc2.start(now);
             osc1.stop(now + 0.23);
@@ -718,6 +877,8 @@ class SoundManager {
     // Recoger ítem / arma: Arpegio ascendente alegre de 2 notas
     playPickup() {
         if (!this.ctx) return;
+        const dest = this.getMasterNode();
+        if (!dest) return;
         try {
             const now = this.ctx.currentTime;
             const osc = this.ctx.createOscillator();
@@ -729,7 +890,7 @@ class SoundManager {
             gain.gain.setValueAtTime(0.25, now + 0.07);
             gain.gain.exponentialRampToValueAtTime(0.001, now + 0.20);
             osc.connect(gain);
-            gain.connect(this.ctx.destination);
+            gain.connect(dest);
             osc.start(now);
             osc.stop(now + 0.21);
         } catch(e) {}
@@ -738,6 +899,8 @@ class SoundManager {
     // Ataques de El Pepe Maestro: Rugido/alarma grave al embestir
     playBossRoar() {
         if (!this.ctx) return;
+        const dest = this.getMasterNode();
+        if (!dest) return;
         try {
             const now = this.ctx.currentTime;
             const osc = this.ctx.createOscillator();
@@ -748,7 +911,7 @@ class SoundManager {
             gain.gain.setValueAtTime(0.38, now);
             gain.gain.exponentialRampToValueAtTime(0.001, now + 0.45);
             osc.connect(gain);
-            gain.connect(this.ctx.destination);
+            gain.connect(dest);
             osc.start(now);
             osc.stop(now + 0.46);
         } catch(e) {}
@@ -757,6 +920,8 @@ class SoundManager {
     // Ataques de El Pepe Maestro: Estruendo sísmico al caer del salto
     playBossSlam() {
         if (!this.ctx) return;
+        const dest = this.getMasterNode();
+        if (!dest) return;
         try {
             const now = this.ctx.currentTime;
             const osc = this.ctx.createOscillator();
@@ -767,7 +932,7 @@ class SoundManager {
             gain.gain.setValueAtTime(0.5, now);
             gain.gain.exponentialRampToValueAtTime(0.001, now + 0.55);
             osc.connect(gain);
-            gain.connect(this.ctx.destination);
+            gain.connect(dest);
             osc.start(now);
             osc.stop(now + 0.56);
         } catch(e) {}
@@ -3455,11 +3620,74 @@ class Game {
         this.isPaused = false;
         this.gunDropped = false;
 
+        // Modo Bajo Rendimiento (desactivado por defecto para todos los usuarios)
+        let savedLowSpec = null;
+        try {
+            savedLowSpec = localStorage.getItem('pepe_low_spec');
+        } catch(e) {}
+        this.lowSpecMode = savedLowSpec === '1'; // estrictamente false por defecto
+        this.offscreenLightCanvas = this.buildOffscreenLightCanvas();
+
+        // Interceptor de shadowBlur para Modo Bajo Rendimiento (cero costo cuando está desactivado)
+        try {
+            const desc = Object.getOwnPropertyDescriptor(CanvasRenderingContext2D.prototype, 'shadowBlur');
+            if (desc && desc.set) {
+                const origSet = desc.set;
+                const self = this;
+                Object.defineProperty(CanvasRenderingContext2D.prototype, 'shadowBlur', {
+                    get: function() { return desc.get.call(this); },
+                    set: function(val) {
+                        if (self.lowSpecMode) {
+                            origSet.call(this, 0);
+                        } else {
+                            origSet.call(this, val);
+                        }
+                    },
+                    configurable: true,
+                    enumerable: true
+                });
+            }
+        } catch(e) {}
+
         this.setupInputs();
         this.setupUI();
         this.initArenaEnvironment();
 
         requestAnimationFrame((t) => this.loop(t));
+    }
+
+    buildOffscreenLightCanvas() {
+        try {
+            const size = 300;
+            const half = size / 2;
+            const cvs = document.createElement('canvas');
+            cvs.width = size;
+            cvs.height = size;
+            const c = cvs.getContext('2d');
+            if (c) {
+                const grad = c.createRadialGradient(half, half, 3, half, half, half);
+                grad.addColorStop(0, 'rgba(255, 170, 60, 0.24)');
+                grad.addColorStop(0.35, 'rgba(234, 88, 12, 0.10)');
+                grad.addColorStop(0.7, 'rgba(234, 88, 12, 0.03)');
+                grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                c.fillStyle = grad;
+                c.beginPath();
+                c.arc(half, half, half, 0, Math.PI * 2);
+                c.fill();
+            }
+            return cvs;
+        } catch(e) {
+            return null;
+        }
+    }
+
+    showMenuView(viewName) {
+        const mainView = document.getElementById('menu-main-view');
+        const controlsView = document.getElementById('menu-controls-view');
+        const optionsView = document.getElementById('menu-options-view');
+        if (mainView) mainView.classList.toggle('hidden', viewName !== 'main');
+        if (controlsView) controlsView.classList.toggle('hidden', viewName !== 'controls');
+        if (optionsView) optionsView.classList.toggle('hidden', viewName !== 'options');
     }
 
     resizeCanvas() {
@@ -3598,9 +3826,13 @@ class Game {
                 this.startNewRun();
             }
 
-            // Pausa (Escape)
-            if (e.code === 'Escape' && (this.state === 'PLAYING' || this.state === 'BOSS_INTRO')) {
-                this.isPaused = !this.isPaused;
+            // Pausa (Escape) o volver al Menú Principal
+            if (e.code === 'Escape') {
+                if (this.state === 'MENU') {
+                    this.showMenuView('main');
+                } else if (this.state === 'PLAYING' || this.state === 'BOSS_INTRO') {
+                    this.isPaused = !this.isPaused;
+                }
             }
 
             // Selección / Cambio de arma
@@ -3927,8 +4159,63 @@ class Game {
         bindButton('btn-play-again', () => this.startNewRun());
         bindButton('btn-next-level', () => this.goToLevel2());
 
+        // Conmutación de vistas del Menú Principal
+        bindButton('btn-controls', () => this.showMenuView('controls'));
+        bindButton('btn-options', () => this.showMenuView('options'));
+        bindButton('btn-back-controls', () => this.showMenuView('main'));
+        bindButton('btn-back-options', () => this.showMenuView('main'));
+
+        // Control de Volumen General
+        const sliderVolume = document.getElementById('slider-volume');
+        const volumeValText = document.getElementById('volume-val-text');
+        const currentPct = Math.round(soundManager.masterVolume * 100);
+        if (sliderVolume) sliderVolume.value = currentPct;
+        if (volumeValText) volumeValText.textContent = currentPct + '%';
+
+        if (sliderVolume) {
+            const handleVol = (e) => {
+                soundManager.init();
+                const pct = parseInt(e.target.value, 10);
+                soundManager.setVolume(pct / 100);
+                if (volumeValText) volumeValText.textContent = pct + '%';
+            };
+            sliderVolume.addEventListener('input', handleVol);
+            sliderVolume.addEventListener('change', handleVol);
+        }
+
+        // Modo Rendimiento / Gráficos Bajos (Toggle)
+        const btnToggleLowSpec = document.getElementById('btn-toggle-lowspec');
+        const updateLowSpecButton = () => {
+            if (!btnToggleLowSpec) return;
+            if (this.lowSpecMode) {
+                btnToggleLowSpec.textContent = 'ACTIVADO';
+                btnToggleLowSpec.style.borderColor = '#fbbf24';
+                btnToggleLowSpec.style.color = '#fbbf24';
+                btnToggleLowSpec.style.background = 'rgba(251, 191, 36, 0.2)';
+                btnToggleLowSpec.style.boxShadow = '0 0 15px rgba(251, 191, 36, 0.4)';
+            } else {
+                btnToggleLowSpec.textContent = 'DESACTIVADO';
+                btnToggleLowSpec.style.borderColor = '#94a3b8';
+                btnToggleLowSpec.style.color = '#94a3b8';
+                btnToggleLowSpec.style.background = 'transparent';
+                btnToggleLowSpec.style.boxShadow = 'none';
+            }
+        };
+        updateLowSpecButton();
+
+        bindButton('btn-toggle-lowspec', () => {
+            this.lowSpecMode = !this.lowSpecMode;
+            try {
+                localStorage.setItem('pepe_low_spec', this.lowSpecMode ? '1' : '0');
+            } catch(e) {}
+            updateLowSpecButton();
+            if (this.lowSpecMode && this.particles.length > 35) {
+                this.particles.length = 35;
+            }
+        });
+
         // Quitar el foco de los botones para que ESPACIO/R no los reactiven por accidente
-        for (const id of ['btn-start', 'btn-retry', 'btn-play-again', 'btn-next-level']) {
+        for (const id of ['btn-start', 'btn-controls', 'btn-options', 'btn-back-controls', 'btn-back-options', 'btn-toggle-lowspec', 'btn-retry', 'btn-play-again', 'btn-next-level']) {
             const el = document.getElementById(id);
             if (el) el.addEventListener('click', () => el.blur());
         }
@@ -4457,7 +4744,11 @@ class Game {
     }
 
     spawnParticles(x, y, count, color, maxSpeed, glow = false) {
-        for (let i = 0; i < count; i++) {
+        if (this.lowSpecMode && this.particles.length >= 35) return;
+        const finalCount = this.lowSpecMode ? Math.max(1, Math.round(count * 0.4)) : count;
+        const actualGlow = this.lowSpecMode ? false : glow;
+        for (let i = 0; i < finalCount; i++) {
+            if (this.lowSpecMode && this.particles.length >= 35) break;
             const angle = Math.random() * Math.PI * 2;
             const speed = MathUtils.randRange(25, maxSpeed);
             const radius = MathUtils.randRange(2, 5.5);
@@ -4466,7 +4757,7 @@ class Game {
                 x, y,
                 Math.cos(angle) * speed,
                 Math.sin(angle) * speed,
-                radius, color, life, 0.9, glow
+                radius, color, life, 0.9, actualGlow
             ));
         }
     }
@@ -4481,7 +4772,8 @@ class Game {
         }
 
         // Chispas y humo ambiental de las antorchas (Minecraft Voxel Particles)
-        if (Math.random() < 0.35) {
+        const torchChance = this.lowSpecMode ? 0.14 : 0.35;
+        if ((!this.lowSpecMode || this.particles.length < 35) && Math.random() < torchChance) {
             const t = this.torches[MathUtils.randInt(0, this.torches.length - 1)];
             const isSmoke = Math.random() < 0.28;
             this.particles.push(new Particle(
@@ -4493,13 +4785,14 @@ class Game {
                 isSmoke ? '#52525b' : (Math.random() < 0.6 ? '#f97316' : '#fde047'),
                 isSmoke ? 0.55 : 0.42,
                 0.96,
-                !isSmoke,
+                this.lowSpecMode ? false : !isSmoke,
                 true // isSquare: true
             ));
         }
 
         // Chispas de fuego pixeladas del Mob Spawner central
-        if (this.state === 'PLAYING' && Math.random() < 0.3) {
+        const spawnerChance = this.lowSpecMode ? 0.12 : 0.3;
+        if ((!this.lowSpecMode || this.particles.length < 35) && this.state === 'PLAYING' && Math.random() < spawnerChance) {
             const spSel = this.spawners[MathUtils.randInt(0, this.spawners.length - 1)];
             const spawnerX = spSel.x;
             const spawnerY = spSel.y;
@@ -4512,9 +4805,14 @@ class Game {
                 Math.random() < 0.55 ? '#ea580c' : '#facc15',
                 0.48,
                 0.95,
-                true,
+                this.lowSpecMode ? false : true,
                 true // isSquare: true
             ));
+        }
+
+        // Límite estricto de partículas en modo bajo rendimiento
+        if (this.lowSpecMode && this.particles.length > 35) {
+            this.particles.length = 35;
         }
 
         if (this.state === 'MENU' || this.state === 'GAMEOVER' || this.state === 'VICTORY') {
@@ -4755,16 +5053,28 @@ class Game {
             const lightRadius = 145 + flicker;
 
             // Iluminación cálida radial dinámica en baldosas cercanas
-            const grad = ctx.createRadialGradient(t.x, t.y - 4, 3, t.x, t.y - 4, lightRadius);
-            grad.addColorStop(0, 'rgba(255, 170, 60, 0.24)');
-            grad.addColorStop(0.35, 'rgba(234, 88, 12, 0.10)');
-            grad.addColorStop(0.7, 'rgba(234, 88, 12, 0.03)');
-            grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
+            if (this.lowSpecMode) {
+                if (this.offscreenLightCanvas) {
+                    const r = 145;
+                    ctx.drawImage(this.offscreenLightCanvas, t.x - r, t.y - 4 - r, r * 2, r * 2);
+                } else {
+                    ctx.fillStyle = 'rgba(255, 170, 60, 0.08)';
+                    ctx.beginPath();
+                    ctx.arc(t.x, t.y - 4, 140, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+            } else {
+                const grad = ctx.createRadialGradient(t.x, t.y - 4, 3, t.x, t.y - 4, lightRadius);
+                grad.addColorStop(0, 'rgba(255, 170, 60, 0.24)');
+                grad.addColorStop(0.35, 'rgba(234, 88, 12, 0.10)');
+                grad.addColorStop(0.7, 'rgba(234, 88, 12, 0.03)');
+                grad.addColorStop(1, 'rgba(0, 0, 0, 0)');
 
-            ctx.fillStyle = grad;
-            ctx.beginPath();
-            ctx.arc(t.x, t.y - 4, lightRadius, 0, Math.PI * 2);
-            ctx.fill();
+                ctx.fillStyle = grad;
+                ctx.beginPath();
+                ctx.arc(t.x, t.y - 4, lightRadius, 0, Math.PI * 2);
+                ctx.fill();
+            }
 
             // Mango de madera rectangular (#8b5a2b)
             ctx.fillStyle = '#8b5a2b';
@@ -4984,6 +5294,10 @@ class Game {
     draw() {
         const ctx = this.ctx;
         ctx.save();
+
+        if (this.lowSpecMode) {
+            ctx.shadowBlur = 0;
+        }
 
         // Soporte de Alta Densidad de Píxeles (Retina / HD)
         if (this.dpr && this.dpr !== 1) {
