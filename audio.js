@@ -209,3 +209,19 @@ const etesechImg = new Image();
 etesechImg.src = 'etesech.png';
 const risinImg = new Image();
 risinImg.src = 'risinpepin.png';
+
+// Pociones reales (v1.4.0)
+const potionHealImg = new Image();
+potionHealImg.src = 'central.png';
+
+const potionSpeedImg = new Image();
+potionSpeedImg.src = 'vive100.png';
+
+const potionFuryImg = new Image();
+potionFuryImg.src = 'smirnoff.png';
+potionFuryImg.onerror = () => {
+    if (!potionFuryImg._retried) {
+        potionFuryImg._retried = true;
+        potionFuryImg.src = 'Smirnoff.png';
+    }
+};

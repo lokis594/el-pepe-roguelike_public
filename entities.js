@@ -290,7 +290,27 @@ function drawGoldBagIcon(ctx, x, y, r = 10) {
     ctx.restore();
 }
 
-function drawPotionFlask(ctx, x, y, r = 10, color = '#4ade80') {
+function drawPotionFlask(ctx, x, y, r = 10, color = '#4ade80', pType = null) {
+    let img = null;
+    if (pType === 'heal' || color === '#4ade80') {
+        if (typeof potionHealImg !== 'undefined') img = potionHealImg;
+    } else if (pType === 'fury' || color === '#f97316') {
+        if (typeof potionFuryImg !== 'undefined') img = potionFuryImg;
+    } else if (pType === 'speed' || color === '#38bdf8') {
+        if (typeof potionSpeedImg !== 'undefined') img = potionSpeedImg;
+    }
+
+    if (img && img.complete && img.naturalWidth > 0) {
+        ctx.save();
+        ctx.translate(x, y);
+        const aspect = img.naturalWidth / img.naturalHeight;
+        const targetH = r * 2.2;
+        const targetW = targetH * aspect;
+        ctx.drawImage(img, -targetW * 0.5, -targetH * 0.5, targetW, targetH);
+        ctx.restore();
+        return;
+    }
+
     ctx.save();
     ctx.translate(x, y);
     // Corcho superior

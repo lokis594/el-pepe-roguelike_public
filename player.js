@@ -278,7 +278,7 @@ class Player extends Entity {
             const bx = this.x + Math.cos(this.aimAngle) * spawnDist;
             const by = this.y + Math.sin(this.aimAngle) * spawnDist;
             const isCrit = Math.random() < 0.15;
-            const dmg = Math.round(13 * this.damageMultiplier * (isCrit ? 1.6 : 1.0));
+            const dmg = Math.round(24 * this.damageMultiplier * (isCrit ? 1.6 : 1.0));
 
             game.projectiles.push(new Projectile(
                 bx, by,

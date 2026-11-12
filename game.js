@@ -2420,10 +2420,10 @@ class Game {
         ctx.fillRect(-52, 0, 104, 7);
         ctx.strokeRect(-52, 0, 104, 7);
 
-        // Los 3 frascos de poción expuestos sobre el mostrador + bolsita de oro
-        drawPotionFlask(ctx, -28, -5, 8.5, '#4ade80');
-        drawPotionFlask(ctx, -4, -5, 8.5, '#f97316');
-        drawPotionFlask(ctx, 20, -5, 8.5, '#38bdf8');
+        // Los 3 frascos/botellas de poción expuestos sobre el mostrador + bolsita de oro
+        drawPotionFlask(ctx, -28, -5, 9.5, '#4ade80', 'heal');
+        drawPotionFlask(ctx, -4, -5, 9.5, '#f97316', 'fury');
+        drawPotionFlask(ctx, 20, -5, 9.5, '#38bdf8', 'speed');
         drawGoldBagIcon(ctx, 38, -3, 7.5);
 
         // Toldo superior a rayas (púrpura y dorado)
@@ -2860,8 +2860,8 @@ class Game {
                 ctx.stroke();
                 ctx.shadowBlur = 0;
 
-                // Icono del frasco de pócima del color correspondiente
-                drawPotionFlask(ctx, pb.x, pb.y - (isMobile ? 2 : 3), isMobile ? 7.2 : 9.2, pb.color);
+                // Icono/Skin de la poción correspondiente (central.png, smirnoff.png, vive100.png)
+                drawPotionFlask(ctx, pb.x, pb.y - (isMobile ? 2 : 3), isMobile ? 8.5 : 11.0, pb.color, pType);
 
                 // Número de cargas disponibles (0 a 3)
                 ctx.font = isMobile ? '900 8.5px "Courier New", monospace' : '900 10px "Courier New", monospace';
