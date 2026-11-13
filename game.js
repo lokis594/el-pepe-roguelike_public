@@ -1101,9 +1101,9 @@ class Game {
     initArenaEnvironment() {
         const isL2 = this.level === 2;
 
-        // Dimensiones del mundo: Nivel 1 = 1100x720, Nivel 2 = 2200x1500 (cámara dinámica)
-        this.worldW = isL2 ? 2200 : 1100;
-        this.worldH = isL2 ? 1500 : 720;
+        // Dimensiones del mundo: Nivel 1 = 1100x720, Nivel 2 = +15% más grande (1.15x -> 1265x828)
+        this.worldW = isL2 ? Math.round(1100 * 1.15) : 1100;
+        this.worldH = isL2 ? Math.round(720 * 1.15) : 720;
         this.arena = {
             x: 60,
             y: 60,
@@ -1138,46 +1138,38 @@ class Game {
 
             this.spawners = [{ x: ax + aw * 0.5, y: ay + ah * 0.5 }];
         } else {
-            // Múltiples Mob Spawners distribuidos por el mapa expandido
+            // 3 Mob Spawners distribuidos en el mapa compacto (1.15x) del Nivel 2
             this.spawners = [
                 { x: ax + aw * 0.5, y: ay + ah * 0.5 },
-                { x: ax + aw * 0.2, y: ay + ah * 0.27 },
-                { x: ax + aw * 0.8, y: ay + ah * 0.27 },
-                { x: ax + aw * 0.2, y: ay + ah * 0.73 },
-                { x: ax + aw * 0.8, y: ay + ah * 0.73 }
+                { x: ax + aw * 0.22, y: ay + ah * 0.5 },
+                { x: ax + aw * 0.78, y: ay + ah * 0.5 }
             ];
 
-            // Más pilares destructibles / de cobertura en rejilla, lejos de los spawners
-            this.pillars = [];
-            const cols = [0.1, 0.36, 0.64, 0.9];
-            const rows = [0.12, 0.5, 0.88];
-            const pillarSpots = [];
-            for (const cx of cols) for (const cy of rows) pillarSpots.push([cx, cy]);
-            pillarSpots.push([0.5, 0.22], [0.5, 0.78], [0.08, 0.32], [0.92, 0.32], [0.08, 0.68], [0.92, 0.68]);
-            for (const [fx, fy] of pillarSpots) {
-                const px = ax + aw * fx;
-                const py = ay + ah * fy;
-                if (this.spawners.some(s => MathUtils.dist(px, py, s.x, s.y) < 130)) continue;
-                this.pillars.push(new Pillar(px, py, 32, true));
-            }
+            // 6 pilares de cobertura bien distribuidos sin bloquear los spawners
+            this.pillars = [
+                new Pillar(ax + aw * 0.20, ay + ah * 0.24, 32, true),
+                new Pillar(ax + aw * 0.50, ay + ah * 0.22, 32, true),
+                new Pillar(ax + aw * 0.80, ay + ah * 0.24, 32, true),
+                new Pillar(ax + aw * 0.20, ay + ah * 0.76, 32, true),
+                new Pillar(ax + aw * 0.50, ay + ah * 0.78, 32, true),
+                new Pillar(ax + aw * 0.80, ay + ah * 0.76, 32, true)
+            ];
 
-            // Muchas más antorchas a lo largo de los muros perimetrales
+            // Antorchas perimetrales proporcionales al mapa 1.15x
             this.torches = [];
-            for (let i = 0; i <= 8; i++) {
-                const tx = ax + 24 + (aw - 48) * (i / 8);
+            for (let i = 0; i <= 4; i++) {
+                const tx = ax + 24 + (aw - 48) * (i / 4);
                 this.torches.push({ x: tx, y: ay + 20 });
                 this.torches.push({ x: tx, y: ay + ah - 20 });
             }
-            const stepsY = 5;
-            for (let i = 1; i < stepsY; i++) {
-                const ty = ay + ah * (i / stepsY);
+            for (let i = 1; i <= 3; i++) {
+                const ty = ay + ah * (i / 4);
                 this.torches.push({ x: ax + 18, y: ty });
                 this.torches.push({ x: ax + aw - 18, y: ty });
             }
-            // Antorchas interiores junto a los spawners
             for (const s of this.spawners) {
-                this.torches.push({ x: s.x - 52, y: s.y - 34 });
-                this.torches.push({ x: s.x + 52, y: s.y - 34 });
+                this.torches.push({ x: s.x - 48, y: s.y - 32 });
+                this.torches.push({ x: s.x + 48, y: s.y - 32 });
             }
         }
 
@@ -1430,6 +1422,10 @@ class Game {
         p.speedBoostTimer = 0;
         p.furyPotionTimer = 0;
         p.speedPotionTimer = 0;
+        p.gargoyleHits = 0;
+        p.gargoyleHitDecayTimer = 0;
+        p.sleepTimer = 0;
+        p.sleepImmunityTimer = 0;
         p.scaleX = p.scaleY = 1;
         p.afterimages = [];
         p.slashTrails = [];
@@ -1514,32 +1510,36 @@ class Game {
     spawnWave(waveNum) {
         const isL2 = this.level === 2;
         const hpWave = waveNum + (isL2 ? 2 : 0);
-        const chaserCount = (isL2 ? 4 : 3) + waveNum * 2;
-        const shooterCount = (isL2 ? 2 : 1) + waveNum;
-        const tankCount = isL2 ? waveNum : 0;
+        const chaserCount = isL2 ? (5 + waveNum * 2) : (3 + waveNum * 2);
+        const shooterCount = isL2 ? (3 + waveNum) : (1 + waveNum);
+        const tankCount = isL2 ? (1 + Math.floor(waveNum * 0.8)) : 0;
+        const gargoyleCount = isL2 ? (1 + Math.ceil(waveNum * 0.6)) : 0;
 
         // Calibración de oro por ronda: entre 3 y 5 bolsas de oro garantizadas en promedio por oleada
-        this.waveTotalEnemies = chaserCount + shooterCount + tankCount;
+        this.waveTotalEnemies = chaserCount + shooterCount + tankCount + gargoyleCount;
         this.waveGoldDropped = 0;
         this.waveGoldTarget = MathUtils.randInt(3, 5);
 
         const spawnPointAwayFromPlayer = () => {
             let sx, sy, tries = 0;
-            if (isL2 && this.spawners.length > 0) {
-                // En el mapa grande, las hordas emergen de los Mob Spawners
+            if (isL2 && this.spawners.length > 0 && Math.random() < 0.65) {
+                // Alterna entre Mob Spawners y bordes de la arena en el mapa compacto del Nivel 2
                 do {
                     const sp = this.spawners[MathUtils.randInt(0, this.spawners.length - 1)];
                     sx = sp.x + MathUtils.randRange(-40, 40);
                     sy = sp.y + MathUtils.randRange(-40, 40);
                     tries++;
-                } while (MathUtils.dist(sx, sy, this.player.x, this.player.y) < 300 && tries < 25);
-                return { x: sx, y: sy };
+                } while (MathUtils.dist(sx, sy, this.player.x, this.player.y) < 210 && tries < 25);
+                if (MathUtils.dist(sx, sy, this.player.x, this.player.y) >= 180) {
+                    return { x: sx, y: sy };
+                }
             }
+            tries = 0;
             do {
                 sx = MathUtils.randRange(this.arena.x + 45, this.arena.x + this.arena.w - 45);
                 sy = MathUtils.randRange(this.arena.y + 45, this.arena.y + this.arena.h - 45);
                 tries++;
-            } while (MathUtils.dist(sx, sy, this.player.x, this.player.y) < 230 && tries < 25);
+            } while (MathUtils.dist(sx, sy, this.player.x, this.player.y) < (isL2 ? 210 : 230) && tries < 25);
             return { x: sx, y: sy };
         };
 
@@ -1561,12 +1561,19 @@ class Game {
             this.spawnParticles(pt.x, pt.y, 16, '#f97316', 140, true);
         }
 
+        for (let i = 0; i < gargoyleCount; i++) {
+            const pt = spawnPointAwayFromPlayer();
+            this.enemies.push(new Enemy(pt.x, pt.y, 'GARGOYLE', hpWave, this.level));
+            this.spawnParticles(pt.x, pt.y, 12, '#c084fc', 130, true);
+        }
+
         this.floatingTexts.push(new FloatingText(this.camera.x + this.width * 0.5, this.camera.y + this.height * 0.3, `¡OLEADA ${waveNum}!`, '#00f5d4', 24, true));
     }
 
     onEnemyKilled(enemy) {
         this.enemiesKilledCount++;
-        this.spawnParticles(enemy.x, enemy.y, 18, enemy.archetype === 'TANK' ? '#f97316' : (enemy.archetype === 'CHASER' ? '#f43f5e' : '#a855f7'), 190, true);
+        const killCol = enemy.archetype === 'TANK' ? '#f97316' : (enemy.archetype === 'GARGOYLE' ? '#c084fc' : (enemy.archetype === 'CHASER' ? '#f43f5e' : '#a855f7'));
+        this.spawnParticles(enemy.x, enemy.y, 18, killCol, 190, true);
 
         // Drop calibrado de moneda/bolsa de oro recolectable (promedio 3 a 5 de oro por ronda)
         if (enemy.shouldDropGold && enemy.shouldDropGold(this)) {
@@ -1716,27 +1723,85 @@ class Game {
         this.triggerBossEntrance();
     }
 
+    startBossFight() {
+        this.triggerBossEntrance();
+    }
+
     triggerBossEntrance() {
         this.state = 'BOSS_INTRO';
-        this.bossIntroTimer = 2.6;
-        this.addScreenShake(12, 2.4);
-        this.projectiles = [];
+        this.bossIntroElapsed = 0;
+        this.bossIntroMaxTime = 3.5;
+        this.bossIntroTimer = 3.5;
+        this.bossIntroStepFlags = {
+            laugh2: false,
+            jumpStarted: false,
+            slamDone: false,
+            doorHit1: false,
+            doorHit2: false,
+            doorHit3: false,
+            doorBurst: false
+        };
+        this.bossIntroDoorScaleX = 1;
+        this.bossIntroDoorScaleY = 1;
+        this.bossIntroDebris = [];
+        this.bossIntroRocks = [];
 
-        // Instanciar a El Pepe Maestro (Nivel 1) o a Risín Pepín - El Señor de la Risa (Nivel 2)
-        this.boss = new Boss(this.arena.x + this.arena.w * 0.5, this.arena.y + 130, this.level);
-        this.spawnParticles(this.boss.x, this.boss.y, 50, this.level === 2 ? '#ff0055' : '#fbbf24', 260, true);
-        if (this.level === 2 && soundManager.playRisinLaugh) {
-            soundManager.playRisinLaugh();
+        // Limpiar proyectiles y bloquear acciones del jugador (Fix balas congeladas en Intro)
+        this.projectiles = [];
+        this.mouse.down = false;
+        if (this.touchControls) {
+            this.touchControls.isAttackTouchHeld = false;
+        }
+        if (this.player) {
+            this.player.isAttacking = false;
+            this.player.isDashing = false;
+            this.player.vx = 0;
+            this.player.vy = 0;
+            this.player.kbVx = 0;
+            this.player.kbVy = 0;
+            this.player.sleepTimer = 0;
+            this.player.gargoyleHits = 0;
         }
 
-        this.ui.bossHud.style.display = 'block';
-        if (this.ui.bossTitle) {
+        const cx = Number.isFinite(this.arena.x + this.arena.w * 0.5) ? (this.arena.x + this.arena.w * 0.5) : 550;
+        const ay = Number.isFinite(this.arena.y) ? this.arena.y : 60;
+        const ah = Number.isFinite(this.arena.h) ? this.arena.h : 600;
+        this.bossIntroAnchorX = cx;
+        this.bossIntroAnchorY = ay + 135;
+        this.bossIntroLandX = cx;
+        this.bossIntroLandY = ay + 235;
+
+        if (this.player) {
+            this.player.x = cx;
+            this.player.y = Math.min(ay + ah - 90, this.bossIntroLandY + 155);
+            this.player.aimAngle = -Math.PI * 0.5;
+            this.updateCamera(0, true);
+        }
+
+        // Instanciar al jefe con coordenadas numéricas válidas dentro de la arena desde el fotograma 0
+        if (this.level === 1) {
+            this.boss = new Boss(this.bossIntroLandX, this.bossIntroLandY, 1);
+            soundManager.playBossRoar();
+            this.addScreenShake(4, 0.3);
+        } else {
+            this.boss = new Boss(this.bossIntroLandX, this.bossIntroLandY, 2);
+            if (soundManager.playClownLaugh8Bit) soundManager.playClownLaugh8Bit();
+            this.addScreenShake(3, 0.25);
+        }
+
+        // Ocultar temporalmente #boss-hud durante la escena de video; se activa al pasar a PLAYING
+        if (this.ui && this.ui.bossHud) {
+            this.ui.bossHud.style.display = 'none';
+        }
+        if (this.ui && this.ui.bossTitle) {
             this.ui.bossTitle.textContent = this.level === 2
                 ? 'RISÍN PEPÍN - EL SEÑOR DE LA RISA'
                 : 'EL PEPE MAESTRO - SEÑOR DE LA MAZMORRA';
         }
-        this.ui.waveCounter.textContent = 'JEFE FINAL';
-        this.ui.waveCounter.style.color = '#ef4444';
+        if (this.ui && this.ui.waveCounter) {
+            this.ui.waveCounter.textContent = 'JEFE FINAL';
+            this.ui.waveCounter.style.color = '#ef4444';
+        }
     }
 
     onBossDefeated(boss) {
@@ -1854,10 +1919,163 @@ class Game {
         }
 
         if (this.state === 'BOSS_INTRO') {
+            this.projectiles = [];
+            const maxT = Number.isFinite(this.bossIntroMaxTime) && this.bossIntroMaxTime > 0 ? this.bossIntroMaxTime : 3.5;
+            if (!Number.isFinite(this.bossIntroTimer)) this.bossIntroTimer = maxT;
             this.bossIntroTimer -= dt;
-            this.player.update(dt, this);
+            this.bossIntroElapsed = MathUtils.clamp(maxT - Math.max(0, this.bossIntroTimer), 0, maxT);
+            const t = this.bossIntroElapsed;
+            const flags = this.bossIntroStepFlags || (this.bossIntroStepFlags = {});
+
+            try {
+                if (this.player) {
+                    this.player.update(dt, this);
+                }
+
+                if (this.level === 1 && this.boss) {
+                    // Coordenadas de arena siempre numéricas y válidas
+                    this.boss.x = Number.isFinite(this.bossIntroLandX) ? this.bossIntroLandX : (this.arena.x + this.arena.w * 0.5);
+                    this.boss.y = Number.isFinite(this.bossIntroLandY) ? this.bossIntroLandY : (this.arena.y + 235);
+                    this.boss.jumpHeight = 0;
+                    this.boss.animTime += dt;
+                    this.boss.scaleX = MathUtils.lerp(this.boss.scaleX || 1, 1, Math.min(1, dt * 12));
+                    this.boss.scaleY = MathUtils.lerp(this.boss.scaleY || 1, 1, Math.min(1, dt * 12));
+
+                    if (t >= 1.1 && t < 2.3) {
+                        // 1.1s a 2.3s: Salto Épico desde lo alto de la torre
+                        if (!flags.jumpStarted) {
+                            flags.jumpStarted = true;
+                            soundManager.playBossRoar();
+                            this.boss.triggerSquash(0.75, 1.32);
+                        }
+                    } else if (t >= 2.3) {
+                        // 2.3s a 3.5s: Aterrizaje sísmico frente al jugador y título "EL PEPE MAESTRO"
+                        if (!flags.slamDone) {
+                            flags.slamDone = true;
+                            this.boss.triggerSquash(1.42, 0.62);
+                            soundManager.playBossSlam();
+                            this.addScreenShake(16, 0.65);
+                            this.bossIntroRocks = [];
+                            for (let i = 0; i < 14; i++) {
+                                const ang = MathUtils.randRange(-Math.PI * 0.92, -Math.PI * 0.08);
+                                const spd = MathUtils.randRange(140, 340);
+                                this.bossIntroRocks.push({
+                                    x: MathUtils.randRange(-28, 28),
+                                    y: MathUtils.randRange(-8, 6),
+                                    vx: Math.cos(ang) * spd,
+                                    vy: Math.sin(ang) * spd,
+                                    rot: Math.random() * Math.PI * 2,
+                                    vrot: MathUtils.randRange(-8, 8),
+                                    r: MathUtils.randRange(5, 12),
+                                    col: i % 2 === 0 ? '#64748b' : '#475569'
+                                });
+                            }
+                        }
+                        if (this.bossIntroRocks && this.bossIntroRocks.length > 0) {
+                            for (const rk of this.bossIntroRocks) {
+                                rk.x += rk.vx * dt;
+                                rk.y += rk.vy * dt;
+                                rk.vy += 520 * dt;
+                                rk.rot += rk.vrot * dt;
+                            }
+                        }
+                    }
+                } else if (this.level === 2 && this.boss) {
+                    this.boss.x = Number.isFinite(this.bossIntroLandX) ? this.bossIntroLandX : (this.arena.x + this.arena.w * 0.5);
+                    this.boss.y = Number.isFinite(this.bossIntroLandY) ? this.bossIntroLandY : (this.arena.y + 235);
+                    this.boss.jumpHeight = 0;
+                    this.boss.animTime += dt;
+                    this.boss.scaleX = MathUtils.lerp(this.boss.scaleX || 1, 1, Math.min(1, dt * 12));
+                    this.boss.scaleY = MathUtils.lerp(this.boss.scaleY || 1, 1, Math.min(1, dt * 12));
+
+                    // Amortiguación de escala de la puerta tras golpes
+                    this.bossIntroDoorScaleX = MathUtils.lerp(this.bossIntroDoorScaleX || 1, 1, Math.min(1, dt * 10));
+                    this.bossIntroDoorScaleY = MathUtils.lerp(this.bossIntroDoorScaleY || 1, 1, Math.min(1, dt * 10));
+
+                    if (t >= 0.62 && !flags.laugh2) {
+                        flags.laugh2 = true;
+                        if (soundManager.playClownLaugh8Bit) soundManager.playClownLaugh8Bit();
+                    }
+                    // 1.2s a 2.4s: 3 golpes brutales desde adentro de la puerta
+                    if (t >= 1.25 && !flags.doorHit1) {
+                        flags.doorHit1 = true;
+                        if (soundManager.playDoorBang) soundManager.playDoorBang();
+                        this.addScreenShake(9, 0.18);
+                        this.bossIntroDoorScaleX = 1.22;
+                        this.bossIntroDoorScaleY = 0.85;
+                    }
+                    if (t >= 1.65 && !flags.doorHit2) {
+                        flags.doorHit2 = true;
+                        if (soundManager.playDoorBang) soundManager.playDoorBang();
+                        this.addScreenShake(11, 0.18);
+                        this.bossIntroDoorScaleX = 1.25;
+                        this.bossIntroDoorScaleY = 0.83;
+                    }
+                    if (t >= 2.05 && !flags.doorHit3) {
+                        flags.doorHit3 = true;
+                        if (soundManager.playDoorBang) soundManager.playDoorBang();
+                        this.addScreenShake(13, 0.2);
+                        this.bossIntroDoorScaleX = 1.28;
+                        this.bossIntroDoorScaleY = 0.80;
+                    }
+                    // 2.4s a 3.5s: La puerta vuela en pedazos y sale Risín Pepín
+                    if (t >= 2.4 && !flags.doorBurst) {
+                        flags.doorBurst = true;
+                        soundManager.playBossSlam();
+                        if (soundManager.playClownLaugh8Bit) soundManager.playClownLaugh8Bit();
+                        this.addScreenShake(16, 0.6);
+                        this.boss.triggerSquash(1.32, 0.72);
+                        this.bossIntroDebris = [];
+                        for (let i = 0; i < 16; i++) {
+                            const ang = MathUtils.randRange(-Math.PI * 0.85, Math.PI * 0.85);
+                            const spd = MathUtils.randRange(180, 420);
+                            this.bossIntroDebris.push({
+                                x: MathUtils.randRange(-45, 45),
+                                y: MathUtils.randRange(-70, 50),
+                                vx: Math.cos(ang) * spd * (i % 2 === 0 ? 1 : -1),
+                                vy: Math.sin(ang) * spd - 90,
+                                rot: Math.random() * Math.PI * 2,
+                                vrot: MathUtils.randRange(-10, 10),
+                                w: MathUtils.randRange(16, 36),
+                                h: MathUtils.randRange(8, 16),
+                                color: i % 3 === 0 ? '#334155' : (i % 2 === 0 ? '#78350f' : '#451a03')
+                            });
+                        }
+                    }
+                    if (this.bossIntroDebris && this.bossIntroDebris.length > 0) {
+                        for (const d of this.bossIntroDebris) {
+                            d.x += d.vx * dt;
+                            d.y += d.vy * dt;
+                            d.vy += 420 * dt;
+                            d.rot += d.vrot * dt;
+                        }
+                    }
+                }
+            } catch (introErr) {
+                console.error('Error recuperado en update BOSS_INTRO:', introErr);
+            }
+
             if (this.bossIntroTimer <= 0) {
+                this.bossIntroTimer = 0;
+                const cx = Number.isFinite(this.bossIntroLandX) ? this.bossIntroLandX : (this.arena.x + this.arena.w * 0.5);
+                const ly = Number.isFinite(this.bossIntroLandY) ? this.bossIntroLandY : (this.arena.y + 235);
+                if (this.boss) {
+                    this.boss.x = cx;
+                    this.boss.y = ly;
+                    this.boss.jumpHeight = 0;
+                    this.boss.scaleX = 1;
+                    this.boss.scaleY = 1;
+                }
+                if (this.player) {
+                    this.player.x = cx;
+                    this.player.y = Math.min(this.arena.y + this.arena.h - 90, ly + 155);
+                    this.player.aimAngle = -Math.PI * 0.5;
+                }
+                if (this.ui && this.ui.bossHud) {
+                    this.ui.bossHud.style.display = 'block';
+                }
                 this.state = 'PLAYING';
+                this.updateCamera(0, true);
             }
         } else if (this.state === 'PLAYING') {
             this.player.update(dt, this);
@@ -2016,8 +2234,9 @@ class Game {
             }
         }
 
-        // Indicador de mejoras activas (Orbes y Pociones)
+        // Indicador de mejoras activas (Orbes y Pociones) y estado de sueño
         const buffs = [];
+        if (this.player.sleepTimer > 0) buffs.push(`💤 ¡DORMIDO! (${this.player.sleepTimer.toFixed(1)}s)`);
         if (this.player.furyPotionTimer > 0) buffs.push(`POCIÓN FURIA +30% (${this.player.furyPotionTimer.toFixed(1)}s)`);
         if (this.player.speedPotionTimer > 0) buffs.push(`POCIÓN VEL +30% (${this.player.speedPotionTimer.toFixed(1)}s)`);
         if (this.player.damageBoostTimer > 0) buffs.push(`FURIA (${this.player.damageBoostTimer.toFixed(1)}s)`);
@@ -2535,6 +2754,548 @@ class Game {
         ctx.restore();
     }
 
+    drawBossIntroWorld(ctx) {
+        this.drawBossIntroCutscene(ctx);
+    }
+
+    drawBossIntroCutscene(ctx) {
+        const W = Number.isFinite(this.width) && this.width > 0 ? this.width : 960;
+        const H = Number.isFinite(this.height) && this.height > 0 ? this.height : 640;
+        const t = Number.isFinite(this.bossIntroElapsed) ? this.bossIntroElapsed : 0;
+        const barH = Math.round(H * 0.105);
+
+        const drawBossActorAt = (sx, sy, scale, lookX, lookY) => {
+            if (!this.boss) return;
+            const prevX = this.boss.x;
+            const prevY = this.boss.y;
+            const prevJump = this.boss.jumpHeight;
+            const prevState = this.boss.state;
+            ctx.save();
+            try {
+                ctx.translate(sx, sy);
+                ctx.scale(scale, scale);
+                this.boss.x = 0;
+                this.boss.y = 0;
+                this.boss.jumpHeight = 0;
+                this.boss.state = 'IDLE';
+                const relPlayer = {
+                    x: (lookX - sx) / (scale || 1),
+                    y: (lookY - sy) / (scale || 1)
+                };
+                this.boss.draw(ctx, relPlayer);
+            } catch (e) {
+            } finally {
+                this.boss.x = prevX;
+                this.boss.y = prevY;
+                this.boss.jumpHeight = prevJump;
+                this.boss.state = prevState;
+                ctx.restore();
+            }
+        };
+
+        const drawPlayerActorAt = (sx, sy, scale, aimAngle) => {
+            if (!this.player) return;
+            const prevX = this.player.x;
+            const prevY = this.player.y;
+            const prevAim = this.player.aimAngle;
+            ctx.save();
+            try {
+                ctx.translate(sx, sy);
+                ctx.scale(scale, scale);
+                this.player.x = 0;
+                this.player.y = 0;
+                this.player.aimAngle = aimAngle;
+                this.player.draw(ctx);
+            } catch (e) {
+            } finally {
+                this.player.x = prevX;
+                this.player.y = prevY;
+                this.player.aimAngle = prevAim;
+                ctx.restore();
+            }
+        };
+
+        ctx.save();
+        try {
+            if (this.level === 1) {
+                // =========================================================================
+                // ESCENA DE VIDEO NIVEL 1: "EL PEPE MAESTRO" (TORRE NOCTURNA + SALTO ÉPICO)
+                // =========================================================================
+                const groundY = Math.round(H * 0.76);
+                const towerX = Math.round(W * 0.22);
+                const towerW = Math.round(Math.min(165, W * 0.17));
+                const towerTopY = Math.round(H * 0.29);
+                const landX = Math.round(W * 0.49);
+                const landY = groundY - 22;
+                const playerX = Math.round(W * 0.75);
+                const playerY = groundY - 18;
+
+                // 1. Cielo nocturno dramático de tormenta
+                const skyGrad = ctx.createLinearGradient(0, 0, 0, groundY);
+                skyGrad.addColorStop(0, '#050811');
+                skyGrad.addColorStop(0.55, '#0f172a');
+                skyGrad.addColorStop(1, '#1e1b4b');
+                ctx.fillStyle = skyGrad;
+                ctx.fillRect(0, 0, W, H);
+
+                // Destello de relámpago al aterrizar (2.3s - 2.55s)
+                if (t >= 2.3 && t < 2.58) {
+                    const flashA = MathUtils.clamp(1 - (t - 2.3) / 0.28, 0, 1) * 0.38;
+                    ctx.fillStyle = `rgba(254, 240, 138, ${flashA})`;
+                    ctx.fillRect(0, 0, W, H);
+                }
+
+                // Luna llena con halo místico
+                const moonX = W * 0.80;
+                const moonY = H * 0.24;
+                const moonGlow = ctx.createRadialGradient(moonX, moonY, 8, moonX, moonY, 110);
+                moonGlow.addColorStop(0, 'rgba(254, 240, 138, 0.45)');
+                moonGlow.addColorStop(0.5, 'rgba(251, 191, 36, 0.14)');
+                moonGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                ctx.fillStyle = moonGlow;
+                ctx.beginPath();
+                ctx.arc(moonX, moonY, 110, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = '#fef08a';
+                ctx.beginPath();
+                ctx.arc(moonX, moonY, 34, 0, Math.PI * 2);
+                ctx.fill();
+
+                // Nubes oscuras en movimiento
+                ctx.fillStyle = 'rgba(15, 23, 42, 0.78)';
+                for (let i = 0; i < 5; i++) {
+                    const cx = ((i * 230 + t * (28 + i * 6)) % (W + 260)) - 130;
+                    const cy = H * (0.18 + (i % 3) * 0.08);
+                    ctx.beginPath();
+                    ctx.ellipse(cx, cy, 85, 22, 0, 0, Math.PI * 2);
+                    ctx.ellipse(cx + 42, cy + 6, 64, 18, 0, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                // 2. Suelo de piedra de la fortaleza
+                ctx.fillStyle = '#1e293b';
+                ctx.fillRect(0, groundY, W, H - groundY);
+                ctx.strokeStyle = '#090d16';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(0, groundY);
+                ctx.lineTo(W, groundY);
+                ctx.stroke();
+
+                // Bloques del pavimento
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = 2;
+                for (let gx = 0; gx < W; gx += 56) {
+                    ctx.beginPath();
+                    ctx.moveTo(gx, groundY);
+                    ctx.lineTo(gx - 18, H);
+                    ctx.stroke();
+                }
+
+                // 3. Imponente Torre de piedra alta con almenas a la izquierda
+                const tLeft = towerX - towerW * 0.5;
+                const tH = groundY - towerTopY;
+                ctx.fillStyle = '#1e293b';
+                ctx.strokeStyle = '#090d16';
+                ctx.lineWidth = 3.5;
+                ctx.fillRect(tLeft, towerTopY, towerW, tH);
+                ctx.strokeRect(tLeft, towerTopY, towerW, tH);
+
+                // Sillería horizontal y vertical de la torre
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = 1.8;
+                for (let ry = towerTopY + 24; ry < groundY; ry += 24) {
+                    ctx.beginPath();
+                    ctx.moveTo(tLeft, ry);
+                    ctx.lineTo(tLeft + towerW, ry);
+                    ctx.stroke();
+                    const shift = ((Math.round((ry - towerTopY) / 24)) % 2) * 22;
+                    for (let rx = tLeft + 26 + shift; rx < tLeft + towerW - 10; rx += 44) {
+                        ctx.beginPath();
+                        ctx.moveTo(rx, ry - 24);
+                        ctx.lineTo(rx, ry);
+                        ctx.stroke();
+                    }
+                }
+
+                // Ventana arqueada oscura y antorchas en la torre
+                ctx.fillStyle = '#06080e';
+                ctx.beginPath();
+                ctx.arc(towerX, towerTopY + tH * 0.42, 18, Math.PI, 0);
+                ctx.lineTo(towerX + 18, towerTopY + tH * 0.42 + 34);
+                ctx.lineTo(towerX - 18, towerTopY + tH * 0.42 + 34);
+                ctx.closePath();
+                ctx.fill();
+
+                for (const txOff of [-towerW * 0.32, towerW * 0.32]) {
+                    const fx = towerX + txOff;
+                    const fy = towerTopY + 55;
+                    ctx.fillStyle = '#ea580c';
+                    ctx.beginPath();
+                    ctx.arc(fx, fy, 7 + Math.sin(t * 20) * 1.8, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = '#fde047';
+                    ctx.beginPath();
+                    ctx.arc(fx, fy, 3.5, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                // Cornisa superior y 5 almenas (battlements)
+                const battW = towerW + 24;
+                const battLeft = towerX - battW * 0.5;
+                ctx.fillStyle = '#334155';
+                ctx.strokeStyle = '#090d16';
+                ctx.lineWidth = 3;
+                ctx.fillRect(battLeft, towerTopY - 12, battW, 16);
+                ctx.strokeRect(battLeft, towerTopY - 12, battW, 16);
+
+                const merlonCount = 5;
+                const merlonW = Math.round(battW / (merlonCount * 1.45));
+                const merlonStep = (battW - merlonW) / (merlonCount - 1);
+                for (let m = 0; m < merlonCount; m++) {
+                    const mx = battLeft + m * merlonStep;
+                    ctx.fillRect(mx, towerTopY - 30, merlonW, 18);
+                    ctx.strokeRect(mx, towerTopY - 30, merlonW, 18);
+                }
+
+                // 4. Jugador (player.png) esperando en la parte inferior derecha mirando hacia la torre / jefe
+                const lookTargetX = t < 1.1 ? towerX : landX;
+                const lookTargetY = t < 1.1 ? (towerTopY - 40) : landY;
+                const playerAim = Math.atan2(lookTargetY - playerY, lookTargetX - playerX);
+                drawPlayerActorAt(playerX, playerY, 1.35, playerAim);
+
+                // 5. Secuencia de El Pepe Maestro (3 fases en 3.5s)
+                const startBx = towerX + 8;
+                const startBy = towerTopY - 44;
+
+                if (t < 1.1) {
+                    // Fase 1 (0.0s - 1.1s): Asomándose amenazante en lo alto de la torre
+                    const spot = ctx.createRadialGradient(startBx, startBy, 10, startBx, startBy, 115);
+                    spot.addColorStop(0, 'rgba(239, 68, 68, 0.28)');
+                    spot.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                    ctx.fillStyle = spot;
+                    ctx.beginPath();
+                    ctx.arc(startBx, startBy, 115, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    const peerBob = Math.sin(t * 8) * 3;
+                    drawBossActorAt(startBx, startBy + peerBob, 1.18, playerX, playerY);
+                } else if (t < 2.3) {
+                    // Fase 2 (1.1s - 2.3s): Salto parabólico épico desde la torre hacia el suelo frente al jugador
+                    const prog = MathUtils.clamp((t - 1.1) / 1.2, 0, 1);
+                    const arcHeight = Math.sin(prog * Math.PI) * (H * 0.27);
+                    const curBx = MathUtils.lerp(startBx, landX, prog);
+                    const curBy = MathUtils.lerp(startBy, landY, prog) - arcHeight;
+                    const curScale = MathUtils.lerp(1.18, 1.42, prog);
+
+                    // Sombra creciente en el punto de aterrizaje
+                    const shR = MathUtils.lerp(18, 62, prog);
+                    ctx.fillStyle = `rgba(0, 0, 0, ${0.25 + prog * 0.45})`;
+                    ctx.beginPath();
+                    ctx.ellipse(landX, groundY + 4, shR, shR * 0.38, 0, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Estelas de velocidad en el arco parabólico
+                    for (let s = 1; s <= 4; s++) {
+                        const tp = Math.max(0, prog - s * 0.065);
+                        const tx = MathUtils.lerp(startBx, landX, tp);
+                        const ty = MathUtils.lerp(startBy, landY, tp) - Math.sin(tp * Math.PI) * (H * 0.27);
+                        ctx.fillStyle = s % 2 === 0 ? `rgba(251, 191, 36, ${0.32 - s * 0.06})` : `rgba(239, 68, 68, ${0.32 - s * 0.06})`;
+                        ctx.beginPath();
+                        ctx.arc(tx, ty, 38 - s * 5, 0, Math.PI * 2);
+                        ctx.fill();
+                    }
+
+                    drawBossActorAt(curBx, curBy, curScale, playerX, playerY);
+                } else {
+                    // Fase 3 (2.3s - 3.5s): Aterrizaje sísmico frente al jugador, grietas, rocas y título
+                    const impactElapsed = t - 2.3;
+                    ctx.strokeStyle = '#090d16';
+                    ctx.lineWidth = 3.5;
+                    for (let i = 0; i < 7; i++) {
+                        const ang = -Math.PI + (i / 6) * Math.PI;
+                        ctx.beginPath();
+                        ctx.moveTo(landX, groundY + 2);
+                        ctx.lineTo(landX + Math.cos(ang) * 95, groundY + 6 + Math.abs(Math.sin(ang)) * 28);
+                        ctx.stroke();
+                    }
+
+                    // Onda expansiva de polvo/energía en el suelo
+                    if (impactElapsed < 0.75) {
+                        const waveP = impactElapsed / 0.75;
+                        ctx.strokeStyle = `rgba(251, 191, 36, ${1 - waveP})`;
+                        ctx.lineWidth = 5 * (1 - waveP) + 1;
+                        ctx.beginPath();
+                        ctx.ellipse(landX, groundY + 4, 30 + waveP * 170, 12 + waveP * 42, 0, 0, Math.PI * 2);
+                        ctx.stroke();
+                    }
+
+                    // Rocas/escombros levantados al caer
+                    if (this.bossIntroRocks && this.bossIntroRocks.length > 0) {
+                        for (const rk of this.bossIntroRocks) {
+                            ctx.save();
+                            ctx.translate(landX + rk.x, groundY + rk.y);
+                            ctx.rotate(rk.rot);
+                            ctx.fillStyle = rk.col;
+                            ctx.strokeStyle = '#090d16';
+                            ctx.lineWidth = 1.5;
+                            ctx.fillRect(-rk.r, -rk.r * 0.7, rk.r * 2, rk.r * 1.4);
+                            ctx.strokeRect(-rk.r, -rk.r * 0.7, rk.r * 2, rk.r * 1.4);
+                            ctx.restore();
+                        }
+                    }
+
+                    drawBossActorAt(landX, landY, 1.42, playerX, playerY);
+                }
+            } else {
+                // =========================================================================
+                // ESCENA DE VIDEO NIVEL 2: "RISÍN PEPÍN" (SALÓN OSCURO + PUERTA MISTERIOSA)
+                // =========================================================================
+                const floorY = Math.round(H * 0.75);
+                const doorCx = Math.round(W * 0.50);
+                const doorCy = Math.round(H * 0.50);
+                const doorW = 148;
+                const doorH = 210;
+                const playerX = Math.round(W * 0.74);
+                const playerY = floorY - 14;
+                const burst = t >= 2.4;
+
+                // 1. Salón oscuro en perspectiva frontal
+                const wallGrad = ctx.createLinearGradient(0, 0, 0, floorY);
+                wallGrad.addColorStop(0, '#04050a');
+                wallGrad.addColorStop(0.6, '#110c1d');
+                wallGrad.addColorStop(1, '#1e132a');
+                ctx.fillStyle = wallGrad;
+                ctx.fillRect(0, 0, W, H);
+
+                // Columnas laterales del salón
+                ctx.fillStyle = '#0f172a';
+                ctx.strokeStyle = '#05070c';
+                ctx.lineWidth = 3;
+                for (const colX of [W * 0.14, W * 0.86]) {
+                    ctx.fillRect(colX - 28, barH, 56, floorY - barH);
+                    ctx.strokeRect(colX - 28, barH, 56, floorY - barH);
+                    // Antorchas del salón
+                    const ty = H * 0.38;
+                    ctx.fillStyle = '#ff0055';
+                    ctx.beginPath();
+                    ctx.arc(colX, ty, 8 + Math.sin(t * 22) * 2, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = '#00f5d4';
+                    ctx.beginPath();
+                    ctx.arc(colX, ty, 3.8, 0, Math.PI * 2);
+                    ctx.fill();
+                    ctx.fillStyle = '#0f172a';
+                }
+
+                // Suelo del salón en perspectiva
+                ctx.fillStyle = '#141824';
+                ctx.fillRect(0, floorY, W, H - floorY);
+                ctx.strokeStyle = '#07090f';
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(0, floorY);
+                ctx.lineTo(W, floorY);
+                ctx.stroke();
+
+                // 2. Gran Puerta antigua de madera y hierro en el centro
+                ctx.save();
+                ctx.translate(doorCx, doorCy);
+
+                // Marco monumental de piedra
+                ctx.fillStyle = '#1e293b';
+                ctx.strokeStyle = '#090d16';
+                ctx.lineWidth = 4;
+                ctx.fillRect(-doorW * 0.5 - 22, -doorH * 0.5 - 22, doorW + 44, doorH + 26);
+                ctx.strokeRect(-doorW * 0.5 - 22, -doorH * 0.5 - 22, doorW + 44, doorH + 26);
+
+                // Hueco abisal interior de la puerta
+                ctx.fillStyle = '#040409';
+                ctx.fillRect(-doorW * 0.5, -doorH * 0.5, doorW, doorH);
+
+                if (!burst) {
+                    // Sacudida y abombamiento de la puerta (1.2s a 2.4s: 3 golpes brutales)
+                    const shakeAmp = t >= 1.2 ? 6.5 : 1.5;
+                    const shakeX = Math.sin(t * 62) * shakeAmp;
+                    const shakeY = t >= 1.2 ? Math.cos(t * 54) * 3.0 : 0;
+                    ctx.save();
+                    ctx.translate(shakeX, shakeY);
+                    ctx.scale(this.bossIntroDoorScaleX || 1, this.bossIntroDoorScaleY || 1);
+
+                    // Hojas de madera antigua oscura
+                    ctx.fillStyle = '#451a03';
+                    ctx.strokeStyle = '#1c0a00';
+                    ctx.lineWidth = 3.5;
+                    ctx.fillRect(-doorW * 0.5, -doorH * 0.5, doorW, doorH);
+                    ctx.strokeRect(-doorW * 0.5, -doorH * 0.5, doorW, doorH);
+
+                    // Tablones verticales
+                    ctx.strokeStyle = '#271206';
+                    ctx.lineWidth = 2.5;
+                    for (const px of [-doorW * 0.25, 0, doorW * 0.25]) {
+                        ctx.beginPath();
+                        ctx.moveTo(px, -doorH * 0.5);
+                        ctx.lineTo(px, doorH * 0.5);
+                        ctx.stroke();
+                    }
+
+                    // Bandas y remaches de hierro pesado
+                    ctx.fillStyle = '#334155';
+                    ctx.fillRect(-doorW * 0.5, -doorH * 0.32, doorW, 14);
+                    ctx.fillRect(-doorW * 0.5, doorH * 0.16, doorW, 14);
+                    ctx.fillStyle = '#fbbf24';
+                    ctx.beginPath();
+                    ctx.arc(-14, 0, 6, 0, Math.PI * 2);
+                    ctx.arc(14, 0, 6, 0, Math.PI * 2);
+                    ctx.fill();
+
+                    // Grietas luminosas y ondas de choque en los 3 golpes (1.2s a 2.4s)
+                    if (t >= 1.2) {
+                        ctx.strokeStyle = '#ff0055';
+                        ctx.lineWidth = 3;
+                        ctx.beginPath();
+                        ctx.moveTo(-24, -55); ctx.lineTo(6, -15); ctx.lineTo(-12, 32);
+                        if (t >= 1.65) {
+                            ctx.moveTo(28, -62); ctx.lineTo(-8, -10); ctx.lineTo(22, 48);
+                        }
+                        if (t >= 2.05) {
+                            ctx.moveTo(-48, -18); ctx.lineTo(46, 12);
+                        }
+                        ctx.stroke();
+                    }
+                    ctx.restore();
+
+                    // Textos vibrantes "JAJAJA", "HIHIHI" flotando detrás/alrededor de la puerta
+                    const laughs = [
+                        { txt: 'JAJAJA', x: -doorW * 0.72, y: -doorH * 0.38, col: '#ff0055', sz: 20 },
+                        { txt: 'HIHIHI', x: doorW * 0.74, y: -doorH * 0.32, col: '#00f5d4', sz: 19 },
+                        { txt: 'JIJIJI', x: 0, y: -doorH * 0.62, col: '#fbbf24', sz: 21 },
+                        { txt: 'JAJAJA!', x: -doorW * 0.68, y: doorH * 0.10, col: '#a855f7', sz: 18 }
+                    ];
+                    ctx.textAlign = 'center';
+                    for (let i = 0; i < laughs.length; i++) {
+                        const lb = laughs[i];
+                        const ox = lb.x + Math.sin(t * 36 + i * 1.9) * 6;
+                        const oy = lb.y + Math.cos(t * 30 + i * 1.4) * 5;
+                        ctx.font = `900 ${lb.sz}px "Courier New", monospace`;
+                        ctx.strokeStyle = '#000000';
+                        ctx.lineWidth = 4;
+                        ctx.strokeText(lb.txt, ox, oy);
+                        ctx.fillStyle = lb.col;
+                        ctx.fillText(lb.txt, ox, oy);
+                    }
+                } else {
+                    // 2.4s a 3.5s: La puerta vuela en pedazos y emana aura carmesí/eléctrica
+                    const portalGlow = ctx.createRadialGradient(0, 0, 12, 0, 0, doorW * 0.95);
+                    portalGlow.addColorStop(0, 'rgba(255, 0, 85, 0.55)');
+                    portalGlow.addColorStop(0.55, 'rgba(0, 245, 212, 0.22)');
+                    portalGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+                    ctx.fillStyle = portalGlow;
+                    ctx.beginPath();
+                    ctx.arc(0, 0, doorW * 0.95, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.restore();
+
+                // Risín Pepín (risinpepin.png) emergiendo frente a la cámara al romperse la puerta (2.4s a 3.5s)
+                if (burst) {
+                    const emergeP = MathUtils.clamp((t - 2.4) / 0.35, 0, 1);
+                    const bossScale = MathUtils.lerp(0.95, 1.42, emergeP);
+                    const bossY = MathUtils.lerp(doorCy + 10, floorY - 26, emergeP);
+                    drawBossActorAt(doorCx, bossY, bossScale, playerX, playerY);
+                }
+
+                // Pedazos de madera y hierro volando por la escena
+                if (burst && this.bossIntroDebris && this.bossIntroDebris.length > 0) {
+                    for (const d of this.bossIntroDebris) {
+                        ctx.save();
+                        ctx.translate(doorCx + d.x, doorCy + d.y);
+                        ctx.rotate(d.rot);
+                        ctx.fillStyle = d.color;
+                        ctx.strokeStyle = '#090d16';
+                        ctx.lineWidth = 2;
+                        ctx.fillRect(-d.w * 0.5, -d.h * 0.5, d.w, d.h);
+                        ctx.strokeRect(-d.w * 0.5, -d.h * 0.5, d.w, d.h);
+                        ctx.restore();
+                    }
+                }
+
+                // Jugador (player.png) expectante frente a la puerta
+                const pAim = Math.atan2((floorY - 30) - playerY, doorCx - playerX);
+                drawPlayerActorAt(playerX, playerY, 1.35, pAim);
+            }
+
+            // Franjas de cine negras arriba y abajo (Letterbox)
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, W, barH);
+            ctx.fillRect(0, H - barH, W, barH);
+
+            const isL2 = this.level === 2;
+            ctx.strokeStyle = isL2 ? '#ff0055' : '#fbbf24';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(0, barH);
+            ctx.lineTo(W, barH);
+            ctx.moveTo(0, H - barH);
+            ctx.lineTo(W, H - barH);
+            ctx.stroke();
+
+            // Indicador superior de escena de video
+            ctx.fillStyle = '#94a3b8';
+            ctx.font = '900 12px "Courier New", monospace';
+            ctx.textAlign = 'left';
+            ctx.fillText('▶ ESCENA CINEMÁTICA', 18, Math.round(barH * 0.62));
+
+            // Título gigante del Jefe en la fase final (2.3s+ en Nivel 1, 2.4s+ en Nivel 2)
+            const showBannerAt = isL2 ? 2.4 : 2.3;
+            if (t >= showBannerAt) {
+                const fadeIn = MathUtils.clamp((t - showBannerAt) / 0.22, 0, 1);
+                const fadeOut = MathUtils.clamp((this.bossIntroTimer || 0) / 0.2, 0, 1);
+                const alpha = Math.max(0.15, Math.min(fadeIn, fadeOut));
+                const accent = isL2 ? '#ff0055' : '#ef4444';
+                const titleColor = isL2 ? '#00f5d4' : '#fbbf24';
+                const bossTitle = isL2 ? 'RISIN PEPIN' : 'EL PEPE MAESTRO';
+                const bannerY = Math.round(barH + 18);
+                const bannerH = 96;
+
+                ctx.save();
+                ctx.globalAlpha = alpha;
+                ctx.fillStyle = 'rgba(0, 0, 0, 0.78)';
+                ctx.fillRect(0, bannerY, W, bannerH);
+
+                ctx.strokeStyle = accent;
+                ctx.lineWidth = 3;
+                ctx.beginPath();
+                ctx.moveTo(0, bannerY);
+                ctx.lineTo(W, bannerY);
+                ctx.moveTo(0, bannerY + bannerH);
+                ctx.lineTo(W, bannerY + bannerH);
+                ctx.stroke();
+
+                ctx.textAlign = 'center';
+                ctx.fillStyle = accent;
+                ctx.font = '900 16px "Courier New", monospace';
+                ctx.fillText(
+                    isL2 ? '¡EL SEÑOR DE LA RISA HA IRRUMPIDO!' : '¡EL SEÑOR DE LA MAZMORRA HA DESCENDIDO!',
+                    W * 0.5,
+                    bannerY + 32
+                );
+
+                ctx.fillStyle = titleColor;
+                ctx.font = '900 36px "Courier New", monospace';
+                ctx.shadowBlur = 18;
+                ctx.shadowColor = accent;
+                ctx.fillText(bossTitle, W * 0.5, bannerY + 74);
+                ctx.restore();
+            }
+        } catch (cutsceneErr) {
+            console.error('Error recuperado en drawBossIntroCutscene:', cutsceneErr);
+        } finally {
+            ctx.restore();
+        }
+    }
+
     draw() {
         const ctx = this.ctx;
         ctx.save();
@@ -2559,80 +3320,56 @@ class Game {
             ctx.translate(dx, dy);
         }
 
-        // 1. Nivel y Iluminación de Antorchas (espacio de mundo con cámara dinámica y zoom dinámico en móviles)
-        ctx.save();
-        const zoom = this.cameraZoom || 1.0;
-        ctx.scale(zoom, zoom);
-        ctx.translate(-this.camera.x, -this.camera.y);
-        this.drawArenaDungeon(ctx);
-
-        if (this.state !== 'MENU') {
-            // 2. Orbes de Botín
-            for (const item of this.pickups) item.draw(ctx);
-
-            // 3. Pilares de cobertura/destructibles
-            for (const pillar of this.pillars) pillar.draw(ctx);
-
-            // 3.5. Sala de Preparación Pre-Jefe (Tienda de Pociones y Muñeco Azul Bailarín)
-            if (this.preBossPrepare && !this.boss) {
-                this.drawPreBossRoom(ctx);
-            }
-
-            // 4. Enemigos
-            for (const enemy of this.enemies) enemy.draw(ctx, this.player);
-
-            // 5. Jefe Final ("El Pepe Maestro")
-            if (this.boss && !this.boss.dead) {
-                this.boss.draw(ctx, this.player);
-            }
-
-            // 6. Jugador y Espada
-            if (this.player && !this.player.dead) {
-                this.player.draw(ctx);
-            }
-
-            // 7. Proyectiles
-            for (const proj of this.projectiles) proj.draw(ctx);
-
-            // 7.5. Interludio entre rondas 1 a 4 (Silueta bailando Fortnite con cuenta regresiva de 10s)
-            if (this.waveIntermission && !this.preBossPrepare && this.waveCooldown > 0) {
-                this.drawFortniteInterlude(ctx);
-            }
-        }
-
-        // 8. Sistema de Partículas y Números de Daño Flotantes
-        for (const p of this.particles) p.draw(ctx);
-        for (const ft of this.floatingTexts) ft.draw(ctx);
-
-        ctx.restore(); // fin del espacio de mundo
-
-        // 9. Aviso Cinemático durante BOSS_INTRO
+        // Si estamos en BOSS_INTRO, renderizar la Escena Cinemática Tipo Video a pantalla completa
         if (this.state === 'BOSS_INTRO') {
+            this.drawBossIntroCutscene(ctx);
+        } else {
+            // 1. Nivel y Iluminación de Antorchas (espacio de mundo con cámara dinámica y zoom dinámico en móviles)
             ctx.save();
-            const alpha = MathUtils.clamp(Math.sin((this.bossIntroTimer / 2.6) * Math.PI) * 1.4, 0, 1);
-            ctx.fillStyle = `rgba(0, 0, 0, ${alpha * 0.65})`;
-            ctx.fillRect(0, this.height * 0.36, this.width, 130);
+            const zoom = this.cameraZoom || 1.0;
+            ctx.scale(zoom, zoom);
+            ctx.translate(-this.camera.x, -this.camera.y);
+            this.drawArenaDungeon(ctx);
 
-            ctx.strokeStyle = `rgba(239, 68, 68, ${alpha})`;
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.moveTo(0, this.height * 0.36);
-            ctx.lineTo(this.width, this.height * 0.36);
-            ctx.moveTo(0, this.height * 0.36 + 130);
-            ctx.lineTo(this.width, this.height * 0.36 + 130);
-            ctx.stroke();
+            if (this.state !== 'MENU') {
+                // 2. Orbes de Botín
+                for (const item of this.pickups) item.draw(ctx);
 
-            ctx.textAlign = 'center';
-            ctx.fillStyle = `rgba(239, 68, 68, ${alpha})`;
-            ctx.font = '900 18px "Courier New", monospace';
-            ctx.fillText('¡ADVERTENCIA: PRESENCIA ABISAL DETECTADA!', this.width * 0.5, this.height * 0.36 + 44);
+                // 3. Pilares de cobertura/destructibles
+                for (const pillar of this.pillars) pillar.draw(ctx);
 
-            ctx.fillStyle = `rgba(251, 191, 36, ${alpha})`;
-            ctx.font = '900 36px "Courier New", monospace';
-            ctx.shadowBlur = 20;
-            ctx.shadowColor = '#ef4444';
-            ctx.fillText('EL PEPE MAESTRO', this.width * 0.5, this.height * 0.36 + 92);
-            ctx.restore();
+                // 3.5. Sala de Preparación Pre-Jefe (Tienda de Pociones y Muñeco Azul Bailarín)
+                if (this.preBossPrepare && !this.boss) {
+                    this.drawPreBossRoom(ctx);
+                }
+
+                // 4. Enemigos
+                for (const enemy of this.enemies) enemy.draw(ctx, this.player);
+
+                // 5. Jefe Final ("El Pepe Maestro" o "Risín Pepín")
+                if (this.boss && !this.boss.dead) {
+                    this.boss.draw(ctx, this.player);
+                }
+
+                // 6. Jugador y Espada
+                if (this.player && !this.player.dead) {
+                    this.player.draw(ctx);
+                }
+
+                // 7. Proyectiles
+                for (const proj of this.projectiles) proj.draw(ctx);
+
+                // 7.5. Interludio entre rondas 1 a 4 (Silueta bailando Fortnite con cuenta regresiva de 10s)
+                if (this.waveIntermission && !this.preBossPrepare && this.waveCooldown > 0) {
+                    this.drawFortniteInterlude(ctx);
+                }
+            }
+
+            // 8. Sistema de Partículas y Números de Daño Flotantes
+            for (const p of this.particles) p.draw(ctx);
+            for (const ft of this.floatingTexts) ft.draw(ctx);
+
+            ctx.restore(); // fin del espacio de mundo
         }
 
         // 9.5. Botones del HUD (Pausa + Pantalla Completa)
@@ -2956,7 +3693,11 @@ class Game {
             targetY = MathUtils.clamp(p.y - viewH * 0.5, 0, maxY);
         }
 
-        const k = snap ? 1 : 1 - Math.exp(-7 * dt);
+        const k = snap ? 1 : 1 - Math.exp(-7 * (Number.isFinite(dt) ? dt : 0.016));
+        if (!Number.isFinite(this.camera.x)) this.camera.x = 0;
+        if (!Number.isFinite(this.camera.y)) this.camera.y = 0;
+        if (!Number.isFinite(targetX)) targetX = 0;
+        if (!Number.isFinite(targetY)) targetY = 0;
         this.camera.x += (targetX - this.camera.x) * k;
         this.camera.y += (targetY - this.camera.y) * k;
     }

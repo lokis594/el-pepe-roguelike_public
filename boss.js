@@ -8,7 +8,9 @@ class Boss extends Entity {
         const isL2 = arguments[2] === 2;
         const pepeBaseHp = 950;
         const maxHp = isL2 ? Math.round(pepeBaseHp * 1.5) : pepeBaseHp; // Risín Pepín: 1.5x la vida de El Pepe
-        super(x, y, 42 * (isL2 ? 1.28 : 1), maxHp);
+        const safeX = Number.isFinite(x) ? x : 550;
+        const safeY = Number.isFinite(y) ? y : 240;
+        super(safeX, safeY, 42 * (isL2 ? 1.28 : 1), maxHp);
         this.level = isL2 ? 2 : 1;
         this.isRisin = isL2;
         this.sizeScale = isL2 ? 1.28 : 1;
@@ -51,6 +53,11 @@ class Boss extends Entity {
 
     isTargetable() {
         return this.state !== 'JUMP_AIR';
+    }
+
+    updateSquash(dt) {
+        this.scaleX = MathUtils.lerp(Number.isFinite(this.scaleX) ? this.scaleX : 1, 1, Math.min(1, dt * 12));
+        this.scaleY = MathUtils.lerp(Number.isFinite(this.scaleY) ? this.scaleY : 1, 1, Math.min(1, dt * 12));
     }
 
     getSpeedMultiplier() {
@@ -848,7 +855,9 @@ class Boss extends Entity {
             ctx.fill();
 
             // Ángulo hacia el jugador
-            const angleToPlayer = Math.atan2(player.y - (this.y + headY), player.x - (this.x + headX));
+            const targetPx = (player && Number.isFinite(player.x)) ? player.x : this.x;
+            const targetPy = (player && Number.isFinite(player.y)) ? player.y : (this.y + 100);
+            const angleToPlayer = Math.atan2(targetPy - (this.y + headY), targetPx - (this.x + headX));
             const lookX = Math.cos(angleToPlayer) * 3;
             const lookY = Math.sin(angleToPlayer) * 2;
 

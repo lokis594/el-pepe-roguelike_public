@@ -192,6 +192,49 @@ class SoundManager {
     playLaserBeam() {
         this.playTone('sawtooth', [[520, 140], [780, 210]], 0.45, 0.34, 0.45, 0.46);
     }
+
+    // Risín Pepín (Intro): Risa malévola de payaso en 8-bit (notas square rítmicas descendentes "JA-JA-JA-JA-JA")
+    playClownLaugh8Bit() {
+        try {
+            if (!this.ctx) this.init();
+            if (!this.ctx) return;
+            const dest = this.getMasterNode();
+            if (!dest) return;
+            const now = this.ctx.currentTime;
+            const notes = [880, 784, 698.46, 659.25, 587.33, 523.25, 698.46];
+            notes.forEach((freq, idx) => {
+                const t0 = now + idx * 0.11;
+                const osc = this.ctx.createOscillator();
+                const gain = this.ctx.createGain();
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(freq * 1.22, t0);
+                osc.frequency.exponentialRampToValueAtTime(freq * 0.82, t0 + 0.085);
+                gain.gain.setValueAtTime(0.24, t0);
+                gain.gain.exponentialRampToValueAtTime(0.001, t0 + 0.09);
+                osc.connect(gain);
+                gain.connect(dest);
+                osc.start(t0);
+                osc.stop(t0 + 0.095);
+            });
+        } catch(e) {}
+    }
+
+    // Golpe seco contra la puerta en la intro de Risín Pepín
+    playDoorBang() {
+        try {
+            if (!this.ctx) this.init();
+            this.playTone('triangle', [[110, 28], [75, 20]], 0.22, 0.48, 0.24, 0.25);
+        } catch(e) {}
+    }
+
+    // Impacto somnífero de Gárgola (step 1 = aviso, step 2 = dormido)
+    playSleepHit(step = 1) {
+        if (step === 1) {
+            this.playTone('sine', [[520, 340]], 0.16, 0.25, 0.18, 0.19);
+        } else {
+            this.playTone('triangle', [[440, 180], [660, 270]], 0.38, 0.32, 0.40, 0.42);
+        }
+    }
 }
 
 const soundManager = new SoundManager();

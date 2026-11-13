@@ -6,22 +6,26 @@
 class Enemy extends Entity {
     constructor(x, y, archetype = 'CHASER', waveIndex = 1, level = 1) {
         const isChaser = archetype === 'CHASER';
-        const radius = archetype === 'TANK' ? 32 : (isChaser ? 16 : 18);
+        const isGargoyle = archetype === 'GARGOYLE';
+        const radius = archetype === 'TANK' ? 32 : (isGargoyle ? 15 : (isChaser ? 16 : 18));
         const hp = archetype === 'TANK'
             ? 4 * (48 + (waveIndex - 1) * 12) // 4x la vida de un melee normal
-            : (isChaser ? 48 : 38) + (waveIndex - 1) * 12;
+            : (isGargoyle ? (36 + (waveIndex - 1) * 10) : ((isChaser ? 48 : 38) + (waveIndex - 1) * 12));
         super(x, y, radius, hp);
 
-        this.archetype = archetype; // 'CHASER' | 'SHOOTER' | 'TANK'
+        this.archetype = archetype; // 'CHASER' | 'SHOOTER' | 'TANK' | 'GARGOYLE'
         this.waveIndex = waveIndex;
         this.level = level;
-        this.baseSpeed = archetype === 'TANK' ? MathUtils.randRange(58, 70) : (isChaser ? MathUtils.randRange(138, 168) : MathUtils.randRange(95, 115));
-        this.speed = this.baseSpeed * (level === 2 ? 1.15 : 1.0);
-        this.baseContactDamage = archetype === 'TANK' ? 8 : (isChaser ? 16 : 10); // Tanque: la mitad del daño normal
+        this.baseSpeed = isGargoyle
+            ? (245 * 1.25) // Gárgola Veloz: 25% más rápida que la velocidad base del jugador
+            : (archetype === 'TANK' ? MathUtils.randRange(58, 70) : (isChaser ? MathUtils.randRange(138, 168) : MathUtils.randRange(95, 115)));
+        this.speed = isGargoyle ? this.baseSpeed : (this.baseSpeed * (level === 2 ? 1.15 : 1.0));
+        this.baseContactDamage = isGargoyle ? 0 : (archetype === 'TANK' ? 8 : (isChaser ? 16 : 10)); // Gárgola: 0 daño directo
         this.contactDamage = Math.round(this.baseContactDamage * (level === 2 ? 1.10 : 1.0));
-        this.baseAttackCooldown = isChaser ? 0.8 : MathUtils.randRange(1.7, 2.3);
-        this.attackCooldown = (!isChaser && level === 2) ? (this.baseAttackCooldown / 1.07) : this.baseAttackCooldown;
+        this.baseAttackCooldown = isGargoyle ? 0.65 : (isChaser ? 0.8 : MathUtils.randRange(1.7, 2.3));
+        this.attackCooldown = (!isChaser && !isGargoyle && level === 2) ? (this.baseAttackCooldown / 1.07) : this.baseAttackCooldown;
         this.attackTimer = MathUtils.randRange(0.4, 1.2);
+        this.gargoyleHitCooldown = 0;
         this.kbMult = archetype === 'TANK' ? 0.3 : 1; // Tanque: 70% menos retroceso
         this.stepPhase = 0;
 
@@ -58,7 +62,8 @@ class Enemy extends Entity {
 
         const textColor = isCrit ? '#fbbf24' : '#ffffff';
         game.floatingTexts.push(new FloatingText(this.x, this.y - 18, isCrit ? `${amount}!` : `${amount}`, textColor, 15, isCrit));
-        game.spawnParticles(this.x, this.y, isCrit ? 14 : 8, this.archetype === 'TANK' ? '#f97316' : (this.archetype === 'CHASER' ? '#f43f5e' : '#a855f7'), 160, true);
+        const pColor = this.archetype === 'TANK' ? '#f97316' : (this.archetype === 'GARGOYLE' ? '#818cf8' : (this.archetype === 'CHASER' ? '#f43f5e' : '#a855f7'));
+        game.spawnParticles(this.x, this.y, isCrit ? 14 : 8, pColor, 160, true);
 
         if (this.hp <= 0) {
             this.dead = true;
@@ -71,7 +76,9 @@ class Enemy extends Entity {
         if (player.dead) return;
 
         const isL2 = game.level === 2 || this.level === 2;
-        const moveSpeed = this.baseSpeed * (isL2 ? 1.15 : 1.0);
+        const moveSpeed = this.archetype === 'GARGOYLE'
+            ? (player.baseSpeed || 245) * 1.25
+            : this.baseSpeed * (isL2 ? 1.15 : 1.0);
         const dmgMult = isL2 ? 1.10 : 1.0;
         const contactDmg = Math.round(this.baseContactDamage * dmgMult);
 
@@ -81,6 +88,7 @@ class Enemy extends Entity {
         const angle = Math.atan2(dy, dx);
 
         this.attackTimer -= dt;
+        if (this.gargoyleHitCooldown > 0) this.gargoyleHitCooldown -= dt;
 
         // Actualizar ondas expansivas de anillo hueco de Ete Sech (Tanque)
         if (this.shockwaves && this.shockwaves.length > 0) {
@@ -111,7 +119,24 @@ class Enemy extends Entity {
             }
         }
 
-        if (this.archetype === 'CHASER' || this.archetype === 'TANK') {
+        if (this.archetype === 'GARGOYLE') {
+            // IA Gárgola Veloz: persigue rápidamente (1.25x base jugador), 0 daño directo, duerme en 2 golpes seguidos
+            const gargoyleSpeed = (player.baseSpeed || 245) * 1.25;
+            this.vx = Math.cos(angle) * gargoyleSpeed;
+            this.vy = Math.sin(angle) * gargoyleSpeed;
+
+            if (this.gargoyleHitCooldown <= 0 && MathUtils.circleCollide(this.x, this.y, this.radius, player.x, player.y, player.radius)) {
+                const isPlayerInvuln = player.isDashing || player.invulnTimer > 0;
+                if (!isPlayerInvuln) {
+                    const hitApplied = player.applyGargoyleHit ? player.applyGargoyleHit(this, game) : false;
+                    this.gargoyleHitCooldown = 0.65;
+                    this.applyKnockback(player.x, player.y, 240);
+                    if (hitApplied) {
+                        this.triggerSquash(1.25, 0.78);
+                    }
+                }
+            }
+        } else if (this.archetype === 'CHASER' || this.archetype === 'TANK') {
             if (this.archetype === 'TANK') {
                 // Lógica del Salto Sísmico periódico de Ete Sech
                 if (this.jumpState === 'TELEGRAPH') {
@@ -440,8 +465,162 @@ class Enemy extends Entity {
         ctx.strokeRect(bx - 2, by - 2, bw + 4, bh + 4);
     }
 
+    // ==========================================
+    // GÁRGOLA VELOZ: Procedural en Canvas (Alas articuladas, cuernos, ojos violeta/cian)
+    // ==========================================
+    drawGargoyle(ctx, player) {
+        const t = this.animTime;
+        const wingFlap = Math.sin(t * 22);
+        const hoverBob = Math.sin(t * 8) * 4;
+        const flash = this.hitFlash > 0;
+        const facingLeft = player.x < this.x;
+
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.scale(this.scaleX, this.scaleY);
+
+        // Sombra en el suelo
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+        ctx.beginPath();
+        ctx.ellipse(0, 20, this.radius * 1.15, this.radius * 0.48, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Aura somnolienta violeta/oscura
+        ctx.save();
+        ctx.strokeStyle = 'rgba(192, 132, 252, 0.55)';
+        ctx.shadowColor = '#a855f7';
+        ctx.shadowBlur = 12;
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, 4, 18 + Math.sin(t * 10) * 2.5, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+
+        // Cuerpo flotante con oscilación
+        ctx.save();
+        ctx.translate(0, -4 + hoverBob);
+        if (facingLeft) ctx.scale(-1, 1);
+
+        const stoneDark = flash ? '#ffffff' : '#312e45';
+        const stoneMid = flash ? '#ffffff' : '#4b5563';
+        const stoneLight = flash ? '#ffffff' : '#64748b';
+        const wingMembrane = flash ? '#ffffff' : '#3b0764';
+        const wingRib = flash ? '#ffffff' : '#581c87';
+
+        // Alas articuladas de murciélago (izquierda y derecha)
+        for (const side of [-1, 1]) {
+            ctx.save();
+            ctx.translate(side * 8, -4);
+            ctx.rotate(side * (wingFlap * 0.55 - 0.15));
+
+            // Membrana del ala
+            ctx.fillStyle = wingMembrane;
+            ctx.strokeStyle = wingRib;
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(side * 22, -16 + wingFlap * 4);
+            ctx.lineTo(side * 28, -2 + wingFlap * 6);
+            ctx.quadraticCurveTo(side * 18, 8, side * 12, 12);
+            ctx.quadraticCurveTo(side * 6, 6, 0, 8);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            // Nervaduras y garra del ala
+            ctx.strokeStyle = stoneLight;
+            ctx.lineWidth = 1.6;
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(side * 20, -14 + wingFlap * 4);
+            ctx.moveTo(side * 11, -7 + wingFlap * 2);
+            ctx.lineTo(side * 17, 7);
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        // Patas con garras de piedra
+        ctx.fillStyle = stoneDark;
+        ctx.strokeStyle = '#0f172a';
+        ctx.lineWidth = 1.5;
+        ctx.fillRect(-8, 10, 5, 8);
+        ctx.fillRect(3, 10, 5, 8);
+
+        // Torso esculpido gris/violáceo
+        ctx.fillStyle = stoneMid;
+        ctx.strokeStyle = '#1e1b4b';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(-11, -7);
+        ctx.lineTo(11, -7);
+        ctx.lineTo(8, 11);
+        ctx.lineTo(-8, 11);
+        ctx.closePath();
+        ctx.fill();
+        ctx.stroke();
+
+        // Pecho cincelado
+        ctx.fillStyle = stoneLight;
+        ctx.fillRect(-7, -4, 5, 6);
+        ctx.fillRect(2, -4, 5, 6);
+
+        // Cabeza de gárgola
+        ctx.fillStyle = stoneMid;
+        ctx.strokeStyle = '#1e1b4b';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, -13, 10, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Cuernos afilados
+        ctx.fillStyle = flash ? '#ffffff' : '#1e293b';
+        ctx.strokeStyle = '#cbd5e1';
+        ctx.lineWidth = 1.2;
+        for (const side of [-1, 1]) {
+            ctx.beginPath();
+            ctx.moveTo(side * 5, -20);
+            ctx.quadraticCurveTo(side * 13, -31, side * 8, -34);
+            ctx.quadraticCurveTo(side * 7, -26, side * 2, -21);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+        }
+
+        // Ojos brillantes violeta/cian
+        ctx.save();
+        ctx.shadowColor = '#00f5d4';
+        ctx.shadowBlur = 12;
+        ctx.fillStyle = '#c084fc';
+        ctx.beginPath();
+        ctx.ellipse(-4, -13, 2.8, 2.0, -0.2, 0, Math.PI * 2);
+        ctx.ellipse(4, -13, 2.8, 2.0, 0.2, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#00f5d4';
+        ctx.beginPath();
+        ctx.arc(-4, -13, 1.3, 0, Math.PI * 2);
+        ctx.arc(4, -13, 1.3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+
+        ctx.restore();
+        ctx.restore();
+
+        // Barra de vida si está herida
+        if (this.hp < this.maxHp) {
+            const bw = 32;
+            const bh = 4.5;
+            const barY = this.y - 38;
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(this.x - bw / 2, barY, bw, bh);
+            ctx.fillStyle = '#c084fc';
+            ctx.fillRect(this.x - bw / 2, barY, bw * (this.hp / this.maxHp), bh);
+        }
+    }
+
     draw(ctx, player) {
         if (this.archetype === 'TANK') { this.drawTank(ctx, player); return; }
+        if (this.archetype === 'GARGOYLE') { this.drawGargoyle(ctx, player); return; }
         ctx.save();
         ctx.translate(this.x, this.y);
         ctx.scale(this.scaleX, this.scaleY);

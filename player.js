@@ -73,6 +73,12 @@ class Player extends Entity {
         this.dmgMult = 1;
         this.moveSpeedMult = 1;
         this.powered = false;
+
+        // Estado de Sueño inducido por Gárgolas Veloces (Nivel 2)
+        this.gargoyleHits = 0;
+        this.gargoyleHitDecayTimer = 0;
+        this.sleepTimer = 0;
+        this.sleepImmunityTimer = 0;
     }
 
     get hasPistol() {
@@ -191,7 +197,36 @@ class Player extends Entity {
         return true;
     }
 
+    applyGargoyleHit(gargoyle, game) {
+        if (this.invulnTimer > 0 || this.isDashing || this.dead) return false;
+        if (this.sleepTimer > 0 || this.sleepImmunityTimer > 0) return false;
+
+        this.gargoyleHits += 1;
+        this.gargoyleHitDecayTimer = 4.0;
+
+        if (this.gargoyleHits === 1) {
+            this.triggerSquash(1.18, 0.85);
+            if (soundManager.playSleepHit) soundManager.playSleepHit(1);
+            game.spawnParticles(this.x, this.y, 12, '#c084fc', 130, true);
+            game.floatingTexts.push(new FloatingText(this.x, this.y - 28, '¡1/2 SUEÑO!', '#c084fc', 16, true));
+        } else {
+            this.gargoyleHits = 0;
+            this.gargoyleHitDecayTimer = 0;
+            this.sleepTimer = 1.8;
+            this.isAttacking = false;
+            this.isDashing = false;
+            this.vx = 0;
+            this.vy = 0;
+            this.triggerSquash(1.3, 0.72);
+            if (soundManager.playSleepHit) soundManager.playSleepHit(2);
+            game.spawnParticles(this.x, this.y, 22, '#818cf8', 155, true);
+            game.floatingTexts.push(new FloatingText(this.x, this.y - 34, '💤 ¡DORMIDO!', '#c084fc', 20, true));
+        }
+        return true;
+    }
+
     startDash(inputX, inputY, game) {
+        if (this.sleepTimer > 0 || (game && game.state === 'BOSS_INTRO')) return;
         if (this.dashCooldownTimer > 0 || this.isDashing) return;
         this.isDashing = true;
         this.dashTimer = this.dashDuration;
@@ -212,6 +247,7 @@ class Player extends Entity {
     }
 
     startAttack(game) {
+        if (this.sleepTimer > 0 || (game && game.state === 'BOSS_INTRO')) return;
         if (this.currentWeapon === 'GUN') {
             if (this.isReloadingPistol) return;
             if (this.pistolAmmo <= 0) {
@@ -358,6 +394,64 @@ class Player extends Entity {
         }
         if (this.muzzleFlash > 0) this.muzzleFlash -= dt;
         this.rifleRecoil = Math.max(0, this.rifleRecoil - dt * 12);
+
+        // Temporizadores de Sueño e inmunidad post-despertar (Gárgolas Nivel 2)
+        if (this.sleepImmunityTimer > 0) this.sleepImmunityTimer = Math.max(0, this.sleepImmunityTimer - dt);
+        if (this.gargoyleHits > 0 && this.sleepTimer <= 0) {
+            this.gargoyleHitDecayTimer -= dt;
+            if (this.gargoyleHitDecayTimer <= 0) {
+                this.gargoyleHits = 0;
+                this.gargoyleHitDecayTimer = 0;
+            }
+        }
+        if (this.sleepTimer > 0) {
+            this.sleepTimer -= dt;
+            if (this.sleepTimer <= 0) {
+                this.sleepTimer = 0;
+                this.sleepImmunityTimer = 1.2;
+                if (game && game.floatingTexts) {
+                    game.floatingTexts.push(new FloatingText(this.x, this.y - 26, '¡DESPIERTO!', '#38bdf8', 15, true));
+                }
+            }
+        }
+
+        // Bloqueo absoluto durante la cinemática de Jefe (evita balas congeladas y movimiento)
+        if (game && game.state === 'BOSS_INTRO') {
+            this.vx = 0;
+            this.vy = 0;
+            this.kbVx = 0;
+            this.kbVy = 0;
+            this.isDashing = false;
+            this.isAttacking = false;
+            this.updateBase(dt, game);
+            for (let i = this.afterimages.length - 1; i >= 0; i--) {
+                this.afterimages[i].life -= dt;
+                if (this.afterimages[i].life <= 0) this.afterimages.splice(i, 1);
+            }
+            for (let i = this.slashTrails.length - 1; i >= 0; i--) {
+                this.slashTrails[i].life -= dt;
+                if (this.slashTrails[i].life <= 0) this.slashTrails.splice(i, 1);
+            }
+            return;
+        }
+
+        // Si está dormido por las Gárgolas: no puede moverse, disparar ni hacer Dash
+        if (this.sleepTimer > 0) {
+            this.vx = 0;
+            this.vy = 0;
+            this.isDashing = false;
+            this.isAttacking = false;
+            this.updateBase(dt, game);
+            for (let i = this.afterimages.length - 1; i >= 0; i--) {
+                this.afterimages[i].life -= dt;
+                if (this.afterimages[i].life <= 0) this.afterimages.splice(i, 1);
+            }
+            for (let i = this.slashTrails.length - 1; i >= 0; i--) {
+                this.slashTrails[i].life -= dt;
+                if (this.slashTrails[i].life <= 0) this.slashTrails.splice(i, 1);
+            }
+            return;
+        }
 
         // Dirección hacia el cursor o última dirección
         const keys = game.keys;
@@ -663,6 +757,26 @@ class Player extends Entity {
             ctx.strokeRect(-this.radius - 8, -this.radius - 8, (this.radius + 8) * 2, (this.radius + 8) * 2);
             ctx.setLineDash([]);
         }
+        if (this.sleepTimer > 0) {
+            ctx.save();
+            const sleepPulse = 0.45 + Math.sin(this.animTime * 8) * 0.2;
+            const sleepGrad = ctx.createRadialGradient(0, 0, 8, 0, 0, 48);
+            sleepGrad.addColorStop(0, `rgba(129, 140, 248, ${sleepPulse * 0.55})`);
+            sleepGrad.addColorStop(0.65, `rgba(168, 85, 247, ${sleepPulse * 0.35})`);
+            sleepGrad.addColorStop(1, 'rgba(99, 102, 241, 0)');
+            ctx.fillStyle = sleepGrad;
+            ctx.beginPath();
+            ctx.arc(0, 0, 48, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#c084fc';
+            ctx.lineWidth = 2.5;
+            ctx.setLineDash([5, 5]);
+            ctx.beginPath();
+            ctx.arc(0, 0, this.radius + 16, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.restore();
+        }
 
         // Parpadeo de invulnerabilidad
         if (this.invulnTimer > 0 && Math.floor(this.invulnTimer * 25) % 2 === 0 && this.hitFlash <= 0) {
@@ -918,6 +1032,57 @@ class Player extends Entity {
             ctx.textAlign = 'center';
             ctx.textBaseline = 'bottom';
             ctx.fillText('RECARGANDO...', this.x, relY - 2);
+        }
+
+        // 7. Efecto visual de Estado "Dormido" (Zzz... flotando + barra de sueño) o Aviso 1/2
+        if (this.sleepTimer > 0) {
+            ctx.save();
+            // Filtro somnoliento azul/violeta sobre el personaje
+            ctx.fillStyle = 'rgba(99, 102, 241, 0.28)';
+            ctx.beginPath();
+            ctx.arc(this.x, this.y, this.radius + 8, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Letras animadas "Z", "z", "z" flotando hacia arriba
+            const letters = ['Z', 'z', 'z'];
+            for (let i = 0; i < letters.length; i++) {
+                const cycle = ((this.animTime * 1.15 + i * 0.33) % 1);
+                const zx = this.x + 8 + i * 10 + Math.sin(cycle * Math.PI * 2 + i) * 5;
+                const zy = barY - 14 - cycle * 34;
+                const alpha = cycle < 0.2 ? cycle / 0.2 : (1 - cycle);
+                ctx.globalAlpha = MathUtils.clamp(alpha, 0, 1);
+                ctx.font = `900 ${16 - i * 2}px "Courier New", monospace`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.strokeStyle = '#0f172a';
+                ctx.lineWidth = 3;
+                ctx.strokeText(letters[i], zx, zy);
+                ctx.fillStyle = i % 2 === 0 ? '#c084fc' : '#818cf8';
+                ctx.fillText(letters[i], zx, zy);
+            }
+
+            // Barra indicadora de sueño restante
+            ctx.globalAlpha = 1;
+            const sw = 54;
+            const sh = 4.5;
+            const sx = this.x - sw * 0.5;
+            const sy = barY - 14;
+            ctx.fillStyle = 'rgba(15, 23, 42, 0.9)';
+            ctx.fillRect(sx, sy, sw, sh);
+            ctx.fillStyle = '#c084fc';
+            ctx.fillRect(sx, sy, sw * MathUtils.clamp(this.sleepTimer / 1.8, 0, 1), sh);
+            ctx.restore();
+        } else if (this.gargoyleHits === 1) {
+            ctx.save();
+            ctx.font = '900 9.5px "Courier New", monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom';
+            ctx.strokeStyle = '#0f172a';
+            ctx.lineWidth = 2.5;
+            ctx.strokeText('1/2 💤', this.x, barY - 13);
+            ctx.fillStyle = '#c084fc';
+            ctx.fillText('1/2 💤', this.x, barY - 13);
+            ctx.restore();
         }
     }
 }
