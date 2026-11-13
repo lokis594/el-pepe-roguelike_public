@@ -166,6 +166,11 @@ class Pillar {
             this.dead = true;
             game.spawnParticles(this.x, this.y, 24, '#94a3b8', 190);
             game.addScreenShake(5, 0.18);
+            // 50% de probabilidad de soltar un orbe de Vida o Velocidad (nunca Furia)
+            if (Math.random() < 0.50) {
+                const orbType = Math.random() < 0.50 ? 'HEAL' : 'HASTE';
+                game.pickups.push(new PickupOrb(this.x, this.y, orbType));
+            }
         }
     }
 
@@ -579,9 +584,11 @@ class GunPickup {
 }
 
 class Projectile {
-    constructor(x, y, vx, vy, radius, damage, color, isEnemy = true, wordText = null) {
+    constructor(x, y, vx, vy, radius, damage, color, isEnemy = true, wordText = null, options = null) {
         this.x = x;
         this.y = y;
+        this.startX = x;
+        this.startY = y;
         this.vx = vx;
         this.vy = vy;
         this.radius = radius;
@@ -591,16 +598,71 @@ class Projectile {
         this.wordText = wordText;
         this.angle = Math.atan2(vy, vx);
         this.spin = 0;
-        this.spinSpeed = wordText ? (Math.random() < 0.5 ? 1 : -1) * MathUtils.randRange(1.8, 3.6) : 0;
+
+        const opts = options || {};
+        this.kind = opts.kind || null; // 'PATIRRONA' | 'PUDDLE_FLASK' | 'LOLA_ORB' | null
+        this.maxDistance = opts.maxDistance || 0;
+        this.distanceTraveled = 0;
+        this.pctMaxHpDamage = opts.pctMaxHpDamage || 0;
+        this.poisonDuration = opts.poisonDuration || 0;
+        this.targetX = Number.isFinite(opts.targetX) ? opts.targetX : x;
+        this.targetY = Number.isFinite(opts.targetY) ? opts.targetY : y;
+        this.puddleRadius = opts.puddleRadius || 90;
+        this.puddleDuration = opts.puddleDuration || 4.0;
+        this.flightHeight = 0;
+        this.piercing = !!opts.piercing;
+        this.aoeRadius = opts.aoeRadius || 0;
+        this.aoeDamage = opts.aoeDamage || Math.round(damage * 0.65);
+        this.aoeTickTimer = 0;
+        this.hitTargets = new Set();
+
+        this.spinSpeed = (this.kind === 'PATIRRONA' || this.kind === 'PUDDLE_FLASK' || this.kind === 'LOLA_ORB')
+            ? 8.5
+            : (wordText ? (Math.random() < 0.5 ? 1 : -1) * MathUtils.randRange(1.8, 3.6) : 0);
         this.dead = false;
         this.life = 5.5;
     }
 
+    spawnPuddleAt(lx, ly, game) {
+        const b = game.arena;
+        const pad = 28;
+        const clampedX = MathUtils.clamp(lx, b.x + pad, b.x + b.w - pad);
+        const clampedY = MathUtils.clamp(ly, b.y + pad, b.y + b.h - pad);
+        if (!game.puddles) game.puddles = [];
+        game.puddles.push(new ToxicPuddle(clampedX, clampedY, this.puddleRadius, this.puddleDuration));
+        if (soundManager.playPuddleSplash) soundManager.playPuddleSplash();
+        game.spawnParticles(clampedX, clampedY, 24, '#39ff14', 150, true);
+        game.spawnParticles(clampedX, clampedY, 16, '#a855f7', 130, true);
+    }
+
     update(dt, game) {
-        this.x += this.vx * dt;
-        this.y += this.vy * dt;
+        const stepX = this.vx * dt;
+        const stepY = this.vy * dt;
+        this.x += stepX;
+        this.y += stepY;
+        this.distanceTraveled += Math.hypot(stepX, stepY);
         this.spin += this.spinSpeed * dt;
         this.life -= dt;
+
+        // Frasco parabólico de Risín Pepín ("Charco Debilitador")
+        if (this.kind === 'PUDDLE_FLASK') {
+            const prog = this.maxDistance > 0 ? MathUtils.clamp(this.distanceTraveled / this.maxDistance, 0, 1) : 1;
+            this.flightHeight = Math.sin(prog * Math.PI) * 58;
+            const b = game.arena;
+            const hitBorder = this.x < b.x || this.x > b.x + b.w || this.y < b.y || this.y > b.y + b.h;
+            if (prog >= 1 || hitBorder || this.life <= 0) {
+                this.dead = true;
+                this.spawnPuddleAt(this.x, this.y, game);
+            }
+            return;
+        }
+
+        // Si tiene distancia máxima marcada (ej. Patirrona de Villa), se disipa al alcanzarla
+        if (this.maxDistance > 0 && this.distanceTraveled >= this.maxDistance) {
+            this.dead = true;
+            game.spawnParticles(this.x, this.y, 10, this.color, 110, true);
+            return;
+        }
 
         // Colisión con límites de la arena
         const b = game.arena;
@@ -614,6 +676,14 @@ class Projectile {
         // Colisión con pilares
         for (const p of game.pillars) {
             if (!p.dead && MathUtils.circleCollide(this.x, this.y, this.radius, p.x, p.y, p.radius)) {
+                if (this.piercing) {
+                    if (!this.hitTargets.has(p)) {
+                        this.hitTargets.add(p);
+                        p.takeDamage(this.damage * 0.65, game);
+                        game.spawnParticles(p.x, p.y, 10, this.color, 130, true);
+                    }
+                    continue;
+                }
                 p.takeDamage(this.damage * 0.5, game);
                 this.dead = true;
                 game.spawnParticles(this.x, this.y, 8, this.color, 110, true);
@@ -627,11 +697,38 @@ class Projectile {
                 if (game.player.isDashing || game.player.invulnTimer > 0) {
                     return;
                 }
-                const hit = game.player.takeDamage(this.damage, this.x, this.y, 200, game);
+                const dmgAmount = this.pctMaxHpDamage > 0
+                    ? Math.max(1, Math.round(game.player.maxHp * this.pctMaxHpDamage))
+                    : this.damage;
+                const hit = game.player.takeDamage(dmgAmount, this.x, this.y, 200, game);
                 if (hit) {
+                    if (this.poisonDuration > 0 && game.player.applyPoison) {
+                        game.player.applyPoison(this.poisonDuration, game);
+                    }
                     this.dead = true;
-                    game.spawnParticles(this.x, this.y, 10, this.color, 130, true);
+                    game.spawnParticles(this.x, this.y, 12, this.color, 130, true);
                 }
+            }
+        }
+
+        // Orbe Cargado de Lola Blaster: daño AoE continuo en área y atraviesa enemigos
+        if (!this.isEnemy && this.kind === 'LOLA_ORB') {
+            this.aoeTickTimer -= dt;
+            if (this.aoeTickTimer <= 0) {
+                this.aoeTickTimer = 0.16;
+                const aoeR = this.aoeRadius || 88;
+                const pulseDmg = Math.max(1, this.aoeDamage);
+                for (const enemy of game.enemies) {
+                    if (!enemy.dead && MathUtils.dist(this.x, this.y, enemy.x, enemy.y) <= aoeR + enemy.radius) {
+                        enemy.takeDamage(pulseDmg, this.x, this.y, 130, false, game);
+                    }
+                }
+                if (game.boss && !game.boss.dead && game.boss.isTargetable()) {
+                    if (MathUtils.dist(this.x, this.y, game.boss.x, game.boss.y) <= aoeR + game.boss.radius) {
+                        game.boss.takeDamage(pulseDmg, this.x, this.y, 70, false, game);
+                    }
+                }
+                game.spawnParticles(this.x, this.y, 5, '#00f5d4', 120, true);
             }
         }
 
@@ -639,6 +736,14 @@ class Projectile {
         if (!this.isEnemy) {
             for (const enemy of game.enemies) {
                 if (!enemy.dead && MathUtils.circleCollide(this.x, this.y, this.radius, enemy.x, enemy.y, enemy.radius)) {
+                    if (this.piercing) {
+                        if (!this.hitTargets.has(enemy)) {
+                            this.hitTargets.add(enemy);
+                            enemy.takeDamage(this.damage, this.x - this.vx * 0.05, this.y - this.vy * 0.05, 210, Math.random() < 0.25, game);
+                            game.spawnParticles(enemy.x, enemy.y, 10, '#00f5d4', 150, true);
+                        }
+                        continue;
+                    }
                     enemy.takeDamage(this.damage, this.x - this.vx * 0.05, this.y - this.vy * 0.05, 170, Math.random() < 0.22, game);
                     this.dead = true;
                     game.spawnParticles(this.x, this.y, 8, this.color, 120, true);
@@ -647,18 +752,123 @@ class Projectile {
             }
             if (game.boss && !game.boss.dead && game.boss.isTargetable()) {
                 if (MathUtils.circleCollide(this.x, this.y, this.radius, game.boss.x, game.boss.y, game.boss.radius)) {
-                    game.boss.takeDamage(this.damage, this.x - this.vx * 0.05, this.y - this.vy * 0.05, 90, Math.random() < 0.22, game);
-                    this.dead = true;
-                    game.spawnParticles(this.x, this.y, 10, this.color, 140, true);
-                    return;
+                    if (this.piercing) {
+                        if (!this.hitTargets.has(game.boss)) {
+                            this.hitTargets.add(game.boss);
+                            game.boss.takeDamage(this.damage, this.x - this.vx * 0.05, this.y - this.vy * 0.05, 110, Math.random() < 0.25, game);
+                            game.spawnParticles(game.boss.x, game.boss.y, 12, '#00f5d4', 165, true);
+                        }
+                    } else {
+                        game.boss.takeDamage(this.damage, this.x - this.vx * 0.05, this.y - this.vy * 0.05, 90, Math.random() < 0.22, game);
+                        this.dead = true;
+                        game.spawnParticles(this.x, this.y, 10, this.color, 140, true);
+                        return;
+                    }
                 }
             }
         }
     }
 
     draw(ctx) {
+        if (this.kind === 'PUDDLE_FLASK') {
+            ctx.save();
+            // Sombra y retícula de aterrizaje en el suelo
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.42)';
+            ctx.beginPath();
+            ctx.ellipse(this.x, this.y + 8, 12, 6, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.strokeStyle = 'rgba(57, 255, 20, 0.65)';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([5, 4]);
+            ctx.beginPath();
+            ctx.arc(this.targetX, this.targetY, this.puddleRadius * 0.45, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Frasco tóxico volando en arco
+            ctx.translate(this.x, this.y - this.flightHeight);
+            ctx.rotate(this.spin);
+            ctx.shadowBlur = 14;
+            ctx.shadowColor = '#39ff14';
+            ctx.fillStyle = '#a855f7';
+            ctx.strokeStyle = '#39ff14';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(0, 2, 10, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            ctx.fillStyle = '#39ff14';
+            ctx.fillRect(-3, -12, 6, 5);
+            ctx.restore();
+            return;
+        }
+
         ctx.save();
         ctx.translate(this.x, this.y);
+        if (this.kind === 'PATIRRONA') {
+            // Aura venenosa brillante y tamaño ampliado del proyectil Patirrona
+            ctx.shadowBlur = 22;
+            ctx.shadowColor = '#39ff14';
+            ctx.fillStyle = 'rgba(57, 255, 20, 0.24)';
+            ctx.strokeStyle = '#39ff14';
+            ctx.lineWidth = 2.6;
+            ctx.beginPath();
+            ctx.arc(0, 0, this.radius + 4, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.rotate(this.angle + this.spin * 0.45);
+            if (typeof patirronaImg !== 'undefined' && patirronaImg.complete && patirronaImg.naturalWidth > 0) {
+                const sz = Math.max(68, this.radius * 2.45);
+                ctx.drawImage(patirronaImg, -sz * 0.5, -sz * 0.5, sz, sz);
+            } else {
+                // Fallback botella tóxica giratoria grande
+                ctx.fillStyle = '#15803d';
+                ctx.strokeStyle = '#bbf7d0';
+                ctx.lineWidth = 2;
+                ctx.fillRect(-20, -10, 32, 20);
+                ctx.strokeRect(-20, -10, 32, 20);
+                ctx.fillStyle = '#39ff14';
+                ctx.fillRect(12, -6, 12, 12);
+            }
+            ctx.restore();
+            return;
+        }
+        if (this.kind === 'LOLA_ORB') {
+            // Bola Grande de Energía Cian (Lola Blaster Cargada) + Campo AoE
+            const pulse = 1 + Math.sin(this.spin * 2.5) * 0.1;
+            const aoeR = this.aoeRadius || 88;
+            ctx.fillStyle = 'rgba(0, 245, 212, 0.14)';
+            ctx.strokeStyle = 'rgba(56, 189, 248, 0.55)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(0, 0, aoeR * pulse, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+
+            ctx.shadowBlur = 26;
+            ctx.shadowColor = '#00f5d4';
+            const orbGrad = ctx.createRadialGradient(0, 0, 3, 0, 0, this.radius);
+            orbGrad.addColorStop(0, '#ffffff');
+            orbGrad.addColorStop(0.45, '#00f5d4');
+            orbGrad.addColorStop(1, 'rgba(14, 165, 233, 0)');
+            ctx.fillStyle = orbGrad;
+            ctx.beginPath();
+            ctx.arc(0, 0, this.radius * 1.15, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.strokeStyle = '#e0f2fe';
+            ctx.lineWidth = 2.5;
+            ctx.rotate(this.spin);
+            ctx.setLineDash([7, 5]);
+            ctx.beginPath();
+            ctx.arc(0, 0, this.radius * 0.9, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.restore();
+            return;
+        }
         if (this.wordText) {
             // Proyectil Especial de Palabra Dañina ("JAJAJA", "XD", "JIJIJI", "LMAO", "AHAJAJA")
             ctx.fillStyle = 'rgba(239, 68, 68, 0.18)';
@@ -697,6 +907,230 @@ class Projectile {
         ctx.beginPath();
         ctx.arc(0, 0, this.radius * 0.45, 0, Math.PI * 2);
         ctx.fill();
+        ctx.restore();
+    }
+}
+
+/**
+ * ============================================================================
+ * CHARCO DEBILITADOR DE RISÍN PEPÍN (W de Twitch - 4s de duración, -10% daño)
+ * ============================================================================
+ */
+class ToxicPuddle {
+    constructor(x, y, radius = 90, duration = 4.0) {
+        this.x = x;
+        this.y = y;
+        this.radius = radius;
+        this.duration = duration;
+        this.maxDuration = duration;
+        this.time = 0;
+        this.dead = false;
+        this.bubbles = [];
+        for (let i = 0; i < 14; i++) {
+            const ang = Math.random() * Math.PI * 2;
+            const dist = Math.random() * (radius * 0.78);
+            this.bubbles.push({
+                ox: Math.cos(ang) * dist,
+                oy: Math.sin(ang) * dist,
+                r: MathUtils.randRange(3, 7),
+                phase: Math.random() * Math.PI * 2,
+                speed: MathUtils.randRange(2.5, 5.0)
+            });
+        }
+    }
+
+    update(dt, game) {
+        this.time += dt;
+        this.duration -= dt;
+        if (this.duration <= 0) {
+            this.dead = true;
+            return;
+        }
+        const player = game.player;
+        if (player && !player.dead && !player.isDashing) {
+            if (MathUtils.dist(this.x, this.y, player.x, player.y) <= this.radius + player.radius * 0.45) {
+                if (player.applyWeakness) {
+                    player.applyWeakness(4.0, game);
+                }
+            }
+        }
+    }
+
+    draw(ctx) {
+        if (this.dead) return;
+        const fadeIn = MathUtils.clamp(this.time / 0.2, 0, 1);
+        const fadeOut = MathUtils.clamp(this.duration / 0.45, 0, 1);
+        const alpha = Math.min(fadeIn, fadeOut);
+        const pulse = 1 + Math.sin(this.time * 6) * 0.03;
+
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.globalAlpha = alpha;
+
+        // Resplandor tóxico verde/púrpura del charco
+        const grad = ctx.createRadialGradient(0, 0, this.radius * 0.15, 0, 0, this.radius * pulse);
+        grad.addColorStop(0, 'rgba(168, 85, 247, 0.52)');
+        grad.addColorStop(0.55, 'rgba(34, 197, 94, 0.42)');
+        grad.addColorStop(0.88, 'rgba(57, 255, 20, 0.28)');
+        grad.addColorStop(1, 'rgba(57, 255, 20, 0)');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(0, 0, this.radius * pulse, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Contorno burbujeante del charco
+        ctx.strokeStyle = 'rgba(192, 132, 252, 0.78)';
+        ctx.lineWidth = 2.5;
+        ctx.setLineDash([10, 6]);
+        ctx.beginPath();
+        ctx.arc(0, 0, this.radius * 0.94 * pulse, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Burbujas animadas en el charco
+        for (const b of this.bubbles) {
+            const cyc = ((this.time * b.speed + b.phase) % (Math.PI * 2)) / (Math.PI * 2);
+            const curR = b.r * (0.5 + cyc * 0.75);
+            const by = b.oy - cyc * 8;
+            ctx.fillStyle = b.phase > Math.PI ? 'rgba(57, 255, 20, 0.72)' : 'rgba(192, 132, 252, 0.72)';
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.arc(b.ox, by, curR, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+        }
+
+        // Etiqueta pequeña discreta
+        ctx.font = '900 10px "Courier New", monospace';
+        ctx.textAlign = 'center';
+        ctx.fillStyle = '#e9d5ff';
+        ctx.strokeStyle = '#090d16';
+        ctx.lineWidth = 2.5;
+        ctx.strokeText('-10% DAÑO', 0, -this.radius * 0.55);
+        ctx.fillText('-10% DAÑO', 0, -this.radius * 0.55);
+
+        ctx.restore();
+    }
+}
+
+/**
+ * ============================================================================
+ * BOMBA GRITO (POWER-UP DE DASH: Explota tras 0.65s quitando 50% HP máx en área)
+ * ============================================================================
+ */
+class BombaGrito {
+    constructor(x, y, radius = 67.5, fuse = 0.65) {
+        this.x = x;
+        this.y = y;
+        this.radius = radius;
+        this.fuse = fuse;
+        this.maxFuse = fuse;
+        this.time = 0;
+        this.exploded = false;
+        this.waveTimer = 0;
+        this.waveDuration = 0.28;
+        this.dead = false;
+    }
+
+    update(dt, game) {
+        this.time += dt;
+        if (!this.exploded) {
+            this.fuse -= dt;
+            if (this.fuse <= 0) {
+                this.exploded = true;
+                this.waveTimer = this.waveDuration;
+                this.explode(game);
+            }
+        } else {
+            this.waveTimer -= dt;
+            if (this.waveTimer <= 0) {
+                this.dead = true;
+            }
+        }
+    }
+
+    explode(game) {
+        if (soundManager.playBombExplosion) soundManager.playBombExplosion();
+        game.addScreenShake(9, 0.24);
+        game.spawnParticles(this.x, this.y, 34, '#f97316', 250, true);
+        game.spawnParticles(this.x, this.y, 24, '#ef4444', 210, true);
+        game.floatingTexts.push(new FloatingText(this.x, this.y - 26, '¡GRITO EXPLOSIVO!', '#f97316', 18, true));
+
+        for (const enemy of game.enemies) {
+            if (enemy.dead) continue;
+            if (MathUtils.dist(this.x, this.y, enemy.x, enemy.y) <= this.radius + enemy.radius * 0.5) {
+                const dmg = Math.max(1, Math.round(enemy.maxHp * 0.50));
+                enemy.takeDamage(dmg, this.x, this.y, 320, true, game);
+            }
+        }
+
+        if (game.boss && !game.boss.dead && game.boss.isTargetable()) {
+            if (MathUtils.dist(this.x, this.y, game.boss.x, game.boss.y) <= this.radius + game.boss.radius * 0.5) {
+                const dmg = Math.max(1, Math.round(game.boss.maxHp * 0.50));
+                game.boss.takeDamage(dmg, this.x, this.y, 120, true, game);
+            }
+        }
+    }
+
+    draw(ctx) {
+        if (this.dead) return;
+        ctx.save();
+        ctx.translate(this.x, this.y);
+
+        if (this.exploded) {
+            const prog = 1 - MathUtils.clamp(this.waveTimer / this.waveDuration, 0, 1);
+            const curR = this.radius * (0.35 + prog * 0.72);
+            const alpha = 1 - prog;
+            ctx.globalAlpha = alpha;
+            ctx.fillStyle = 'rgba(249, 115, 22, 0.25)';
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 6 * alpha + 2;
+            ctx.shadowBlur = 22;
+            ctx.shadowColor = '#f97316';
+            ctx.beginPath();
+            ctx.arc(0, 0, curR, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+            ctx.restore();
+            return;
+        }
+
+        const prog = 1 - MathUtils.clamp(this.fuse / this.maxFuse, 0, 1);
+        const pulse = 1 + Math.sin(this.time * 28) * 0.1;
+
+        // Área de explosión telegrafiada (radio 135px)
+        ctx.fillStyle = `rgba(239, 68, 68, ${0.12 + prog * 0.22})`;
+        ctx.strokeStyle = `rgba(249, 115, 22, ${0.55 + prog * 0.45})`;
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.stroke();
+
+        // Onda interior creciente según tiempo de mecha
+        ctx.strokeStyle = 'rgba(251, 191, 36, 0.8)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.arc(0, 0, Math.max(8, this.radius * prog), 0, Math.PI * 2);
+        ctx.stroke();
+
+        // Imagen Bomba_grito.png palpitando
+        ctx.scale(pulse, pulse);
+        ctx.shadowBlur = 16;
+        ctx.shadowColor = '#f97316';
+        if (typeof bombaGritoImg !== 'undefined' && bombaGritoImg.complete && bombaGritoImg.naturalWidth > 0) {
+            const sz = 48;
+            ctx.drawImage(bombaGritoImg, -sz * 0.5, -sz * 0.5, sz, sz);
+        } else {
+            ctx.fillStyle = '#ea580c';
+            ctx.strokeStyle = '#fef08a';
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.arc(0, 0, 18, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+        }
         ctx.restore();
     }
 }

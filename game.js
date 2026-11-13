@@ -13,6 +13,7 @@ class Game {
         if (tag) tag.classList.toggle('in-game', v !== 'MENU');
         const patchBtn = document.getElementById('btn-patch-notes');
         if (patchBtn) patchBtn.classList.toggle('hidden', v !== 'MENU');
+        if (this.syncAdminButtonsVisibility) this.syncAdminButtonsVisibility();
     }
 
     get isMobileView() {
@@ -132,12 +133,31 @@ class Game {
         this.player = null;
         this.enemies = [];
         this.projectiles = [];
+        this.puddles = [];
+        this.bombs = [];
         this.pillars = [];
         this.pickups = [];
         this.particles = [];
         this.floatingTexts = [];
         this.torches = [];
         this.boss = null;
+        this.waveGatePos = { x: 685, y: 360 };
+        this.postPepePowerupGate = false;
+        this.powerupGatePos = { x: 550, y: 330 };
+        this.isPowerupOpen = false;
+        this.selectedPowerup = null;
+
+        // Modo Admin Secreto (en memoria de sesión; jamás se guarda en localStorage)
+        this.isAdminUnlocked = false;
+        this.titleClickCount = 0;
+        this.titleAdminButtonRevealed = false;
+        this.isAdminOpen = false;
+        this.adminState = {
+            isImmortal: false,
+            infiniteItems: false,
+            weaponOverrides: { sword: null, gun: null, rifle: null },
+            powerUps: { bombaGrito: null, lolaBlaster: null, belcesword: null }
+        };
 
         // Progresión de Oleadas (5 Rondas), Preparación Pre-Jefe y Estado de Pausa
         this.currentWave = 1;
@@ -280,6 +300,19 @@ class Game {
         }
     }
 
+    isAnyMenuOpen() {
+        if (this.state === 'MENU' || this.isPaused || this.isAdminOpen || this.isPowerupOpen || this.isShopOpen) return true;
+        const patchModal = document.getElementById('patch-notes-modal');
+        if (patchModal && !patchModal.classList.contains('hidden')) return true;
+        const confirmModal = document.getElementById('newgame-confirm-modal');
+        if (confirmModal && !confirmModal.classList.contains('hidden')) return true;
+        const passModal = document.getElementById('admin-password-modal');
+        if (passModal && !passModal.classList.contains('hidden')) return true;
+        const adminModal = document.getElementById('admin-panel-modal');
+        if (adminModal && !adminModal.classList.contains('hidden')) return true;
+        return false;
+    }
+
     syncPauseSettingsUI() {
         const pct = Math.round(soundManager.masterVolume * 100);
         const pauseSlider = document.getElementById('slider-pause-volume');
@@ -310,7 +343,9 @@ class Game {
                     speed: p.potions.speed || 0
                 } : { heal: 0, fury: 0, speed: 0 },
                 hasPistol: !!(p.hasGun || p.hasPistol),
-                hasRifle: true
+                hasRifle: true,
+                powerup: this.selectedPowerup || p.powerup || null,
+                powerUps: p.powerUps ? { ...p.powerUps } : null
             };
             localStorage.setItem('pepe_roguelike_save', JSON.stringify(data));
         } catch (e) {}
@@ -371,6 +406,343 @@ class Game {
         if (modal) modal.classList.add('hidden');
     }
 
+    registerTitleClick() {
+        if (this.state !== 'MENU') return;
+        this.titleClickCount = (this.titleClickCount || 0) + 1;
+        if (this.titleClickCount >= 7) {
+            this.titleAdminButtonRevealed = true;
+            this.syncAdminButtonsVisibility();
+        }
+    }
+
+    syncAdminButtonsVisibility() {
+        const menuBtn = document.getElementById('btn-admin-access');
+        const floatBtn = document.getElementById('btn-admin-floating');
+        const inMenu = this.state === 'MENU';
+        if (menuBtn) {
+            menuBtn.classList.toggle('hidden', !(inMenu && (this.titleAdminButtonRevealed || this.isAdminUnlocked)));
+        }
+        if (floatBtn) {
+            floatBtn.classList.toggle('hidden', !(!inMenu && this.isAdminUnlocked));
+        }
+    }
+
+    openAdminPasswordModal() {
+        const modal = document.getElementById('admin-password-modal');
+        const input = document.getElementById('admin-password-input');
+        const err = document.getElementById('admin-password-error');
+        if (err) err.classList.add('hidden');
+        if (input) {
+            input.value = '';
+        }
+        if (modal) modal.classList.remove('hidden');
+        if (input) {
+            setTimeout(() => { try { input.focus(); } catch(e) {} }, 20);
+        }
+    }
+
+    closeAdminPasswordModal() {
+        const modal = document.getElementById('admin-password-modal');
+        const input = document.getElementById('admin-password-input');
+        const err = document.getElementById('admin-password-error');
+        if (err) err.classList.add('hidden');
+        if (input) input.value = '';
+        if (modal) modal.classList.add('hidden');
+    }
+
+    submitAdminPassword() {
+        const input = document.getElementById('admin-password-input');
+        const err = document.getElementById('admin-password-error');
+        const val = input ? input.value : '';
+        if (val === 'peponciooaxaco67') {
+            this.isAdminUnlocked = true;
+            this.closeAdminPasswordModal();
+            this.syncAdminButtonsVisibility();
+            this.openAdminPanel();
+            return true;
+        }
+        if (err) err.classList.remove('hidden');
+        if (input) {
+            input.value = '';
+            try { input.focus(); } catch(e) {}
+        }
+        return false;
+    }
+
+    openAdminPanel() {
+        if (!this.isAdminUnlocked) return;
+        this.isAdminOpen = true;
+        this.mouse.down = false;
+        this.keys = {};
+        if (this.touchControls) {
+            this.touchControls.isAttackTouchHeld = false;
+            this.touchControls.joystick.active = false;
+        }
+        this.syncAdminPanelUI();
+        const modal = document.getElementById('admin-panel-modal');
+        if (modal) modal.classList.remove('hidden');
+    }
+
+    closeAdminPanel() {
+        this.isAdminOpen = false;
+        const modal = document.getElementById('admin-panel-modal');
+        if (modal) modal.classList.add('hidden');
+    }
+
+    exitAdminMode() {
+        this.closeAdminPanel();
+        this.closeAdminPasswordModal();
+        this.isAdminUnlocked = false;
+        this.titleAdminButtonRevealed = false;
+        this.titleClickCount = 0;
+        this.syncAdminButtonsVisibility();
+    }
+
+    applyAdminStateToPlayer(p) {
+        if (!p || !this.adminState) return;
+        p.isImmortal = !!this.adminState.isImmortal;
+        p.infiniteItems = !!this.adminState.infiniteItems;
+        if (p.infiniteItems) {
+            p.potions.heal = p.maxPotionStack;
+            p.potions.fury = p.maxPotionStack;
+            p.potions.speed = p.maxPotionStack;
+            p.pistolAmmo = p.pistolMaxAmmo;
+            p.rifleAmmo = p.rifleMaxAmmo;
+            p.gold = Math.max(p.gold || 0, 999);
+        }
+        const wo = this.adminState.weaponOverrides || {};
+        if (wo.sword !== null && wo.sword !== undefined) p.hasSword = !!wo.sword;
+        if (wo.gun !== null && wo.gun !== undefined) {
+            p.hasGun = !!wo.gun;
+            p.hasPistol = !!wo.gun;
+        }
+        if (wo.rifle !== null && wo.rifle !== undefined) p.hasRifle = !!wo.rifle;
+
+        const curInvalid = (p.currentWeapon === 'SWORD' && !p.hasSword)
+            || (p.currentWeapon === 'GUN' && !p.hasGun)
+            || (p.currentWeapon === 'RIFLE' && !p.hasRifle);
+        if (curInvalid) {
+            if (p.hasSword) p.currentWeapon = 'SWORD';
+            else if (p.hasGun) p.currentWeapon = 'GUN';
+            else if (p.hasRifle) p.currentWeapon = 'RIFLE';
+        }
+
+        const pu = this.adminState.powerUps || {};
+        if (pu.bombaGrito !== null && pu.bombaGrito !== undefined && p.setPowerUpEnabled) {
+            p.setPowerUpEnabled('BOMBA_GRITO', !!pu.bombaGrito);
+        }
+        if (pu.lolaBlaster !== null && pu.lolaBlaster !== undefined && p.setPowerUpEnabled) {
+            p.setPowerUpEnabled('LOLA_BLASTER', !!pu.lolaBlaster);
+        }
+        if (pu.belcesword !== null && pu.belcesword !== undefined && p.setPowerUpEnabled) {
+            p.setPowerUpEnabled('BELCESWORD', !!pu.belcesword);
+        }
+    }
+
+    syncAdminPanelUI() {
+        const p = this.player;
+        const setToggle = (id, label, on) => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.textContent = `${label}: ${on ? 'ON' : 'OFF'}`;
+            el.classList.toggle('admin-on', !!on);
+            el.classList.toggle('admin-off', !on);
+        };
+        const immortalOn = p ? !!p.isImmortal : !!this.adminState.isImmortal;
+        const infiniteOn = p ? !!p.infiniteItems : !!this.adminState.infiniteItems;
+        const swordOn = p ? !!p.hasSword : (this.adminState.weaponOverrides.sword !== null ? !!this.adminState.weaponOverrides.sword : true);
+        const pistolOn = p ? !!p.hasGun : !!this.adminState.weaponOverrides.gun;
+        const rifleOn = p ? !!p.hasRifle : !!this.adminState.weaponOverrides.rifle;
+        const bombaOn = p && p.hasPowerUp ? p.hasPowerUp('BOMBA_GRITO') : !!this.adminState.powerUps.bombaGrito;
+        const lolaOn = p && p.hasPowerUp ? p.hasPowerUp('LOLA_BLASTER') : !!this.adminState.powerUps.lolaBlaster;
+        const belceOn = p && p.hasPowerUp ? p.hasPowerUp('BELCESWORD') : !!this.adminState.powerUps.belcesword;
+
+        setToggle('btn-admin-immortal', '🛡️ MODO INMORTAL', immortalOn);
+        setToggle('btn-admin-infinite', '♾️ ÍTEMS Y MUNICIÓN INFINITOS', infiniteOn);
+        setToggle('btn-admin-weapon-sword', '⚔️ ESPADA', swordOn);
+        setToggle('btn-admin-weapon-pistol', '🔫 PISTOLA', pistolOn);
+        setToggle('btn-admin-weapon-rifle', '🔥 RIFLE', rifleOn);
+        setToggle('btn-admin-pu-bomba', '💣 Bomba Grito', bombaOn);
+        setToggle('btn-admin-pu-lola', '⚡ Lola Blaster', lolaOn);
+        setToggle('btn-admin-pu-belce', '🟣 Belcesword', belceOn);
+    }
+
+    adminTeleportLevel(targetLevel) {
+        if (!this.isAdminUnlocked) return;
+        this.closeAdminPanel();
+        this.setPaused(false);
+        this.resetGame(targetLevel === 2 ? 2 : 1);
+    }
+
+    adminTeleportBoss(targetLevel) {
+        if (!this.isAdminUnlocked) return;
+        const lvl = targetLevel === 2 ? 2 : 1;
+        this.closeAdminPanel();
+        this.setPaused(false);
+        this.resetGame(lvl);
+        this.enemies = [];
+        this.projectiles = [];
+        this.puddles = [];
+        this.bombs = [];
+        this.waveIntermission = false;
+        this.waveCooldown = 0;
+        this.preBossPrepare = false;
+        this.postPepePowerupGate = false;
+        this.currentWave = this.maxWaves;
+        this.triggerBossEntrance();
+        this.updateHUD();
+    }
+
+    adminTeleportShop() {
+        if (!this.isAdminUnlocked) return;
+        this.closeAdminPanel();
+        this.setPaused(false);
+        if (!this.player || this.state === 'MENU' || this.state === 'GAMEOVER' || this.state === 'VICTORY') {
+            this.resetGame(this.level === 2 ? 2 : 1);
+        }
+        this.enemies = [];
+        this.projectiles = [];
+        this.puddles = [];
+        this.boss = null;
+        this.postPepePowerupGate = false;
+        this.waveIntermission = false;
+        this.waveCooldown = 0;
+        this.currentWave = this.maxWaves;
+        this.setupPreBossRoom();
+        if (this.player && this.shopPos) {
+            this.player.x = this.shopPos.x + 65;
+            this.player.y = this.shopPos.y + 40;
+            this.updateCamera(0, true);
+        }
+        this.state = 'PLAYING';
+        this.updateHUD();
+    }
+
+    adminSkipWave() {
+        if (!this.isAdminUnlocked) return;
+        this.closeAdminPanel();
+        this.setPaused(false);
+        if (!this.player || this.state === 'MENU' || this.state === 'GAMEOVER' || this.state === 'VICTORY') {
+            this.resetGame(this.level === 2 ? 2 : 1);
+        }
+        this.enemies = [];
+        this.projectiles = [];
+        this.puddles = [];
+        this.waveCooldown = 0;
+        this.waveIntermission = false;
+        if (!this.boss && !this.preBossPrepare) {
+            if (this.currentWave < this.maxWaves) {
+                this.currentWave++;
+                this.spawnWave(this.currentWave);
+            } else {
+                this.setupPreBossRoom();
+            }
+        }
+        this.state = 'PLAYING';
+        this.updateHUD();
+    }
+
+    adminToggleImmortal() {
+        if (!this.isAdminUnlocked) return;
+        const next = !(this.player ? this.player.isImmortal : this.adminState.isImmortal);
+        this.adminState.isImmortal = next;
+        if (this.player) this.player.isImmortal = next;
+        this.syncAdminPanelUI();
+        this.updateHUD();
+    }
+
+    adminToggleInfiniteItems() {
+        if (!this.isAdminUnlocked) return;
+        const next = !(this.player ? this.player.infiniteItems : this.adminState.infiniteItems);
+        this.adminState.infiniteItems = next;
+        if (this.player) {
+            this.player.infiniteItems = next;
+            if (next) this.applyAdminStateToPlayer(this.player);
+        }
+        this.syncAdminPanelUI();
+        this.updateHUD();
+    }
+
+    adminToggleWeapon(slot) {
+        if (!this.isAdminUnlocked) return;
+        const p = this.player;
+        if (slot === 'sword') {
+            const cur = p ? !!p.hasSword : (this.adminState.weaponOverrides.sword !== null ? !!this.adminState.weaponOverrides.sword : true);
+            const next = !cur;
+            this.adminState.weaponOverrides.sword = next;
+            if (p) {
+                p.hasSword = next;
+                if (!next && p.currentWeapon === 'SWORD') {
+                    if (p.hasGun) p.currentWeapon = 'GUN';
+                    else if (p.hasRifle) p.currentWeapon = 'RIFLE';
+                } else if (next && !p.hasGun && !p.hasRifle) {
+                    p.currentWeapon = 'SWORD';
+                }
+            }
+        } else if (slot === 'gun') {
+            const cur = p ? !!p.hasGun : !!this.adminState.weaponOverrides.gun;
+            const next = !cur;
+            this.adminState.weaponOverrides.gun = next;
+            if (p) {
+                p.hasGun = next;
+                p.hasPistol = next;
+                if (next) p.currentWeapon = 'GUN';
+                else if (p.currentWeapon === 'GUN') p.currentWeapon = p.hasSword ? 'SWORD' : (p.hasRifle ? 'RIFLE' : 'SWORD');
+            }
+        } else if (slot === 'rifle') {
+            const cur = p ? !!p.hasRifle : !!this.adminState.weaponOverrides.rifle;
+            const next = !cur;
+            this.adminState.weaponOverrides.rifle = next;
+            if (p) {
+                p.hasRifle = next;
+                if (next) p.currentWeapon = 'RIFLE';
+                else if (p.currentWeapon === 'RIFLE') p.currentWeapon = p.hasSword ? 'SWORD' : (p.hasGun ? 'GUN' : 'SWORD');
+            }
+        }
+        this.syncAdminPanelUI();
+        this.updateHUD();
+    }
+
+    adminUnlockAllWeapons() {
+        if (!this.isAdminUnlocked) return;
+        this.adminState.weaponOverrides = { sword: true, gun: true, rifle: true };
+        if (this.player) {
+            this.player.hasSword = true;
+            this.player.hasGun = true;
+            this.player.hasPistol = true;
+            this.player.hasRifle = true;
+        }
+        this.syncAdminPanelUI();
+        this.updateHUD();
+    }
+
+    adminTogglePowerUp(key) {
+        if (!this.isAdminUnlocked) return;
+        const field = key === 'BOMBA_GRITO' ? 'bombaGrito' : (key === 'LOLA_BLASTER' ? 'lolaBlaster' : 'belcesword');
+        const cur = (this.player && this.player.hasPowerUp)
+            ? this.player.hasPowerUp(key)
+            : !!this.adminState.powerUps[field];
+        const next = !cur;
+        this.adminState.powerUps[field] = next;
+        if (this.player && this.player.setPowerUpEnabled) {
+            this.player.setPowerUpEnabled(key, next);
+        }
+        this.syncAdminPanelUI();
+        this.updateHUD();
+    }
+
+    adminEnableAllPowerUps() {
+        if (!this.isAdminUnlocked) return;
+        this.adminState.powerUps = { bombaGrito: true, lolaBlaster: true, belcesword: true };
+        if (this.player && this.player.setPowerUpEnabled) {
+            this.player.setPowerUpEnabled('BOMBA_GRITO', true);
+            this.player.setPowerUpEnabled('LOLA_BLASTER', true);
+            this.player.setPowerUpEnabled('BELCESWORD', true);
+        }
+        this.syncAdminPanelUI();
+        this.updateHUD();
+    }
+
     continueSavedGame() {
         const save = this.getSavedProgress();
         if (!save) return;
@@ -391,20 +763,37 @@ class Game {
         this.player.hasPistol = !!save.hasPistol;
         this.player.hasRifle = true;
         this.player.currentWeapon = 'RIFLE';
+        this.selectedPowerup = save.powerup || null;
+        if (save.powerUps && typeof save.powerUps === 'object') {
+            this.player.powerUps = {
+                bombaGrito: !!save.powerUps.bombaGrito,
+                lolaBlaster: !!save.powerUps.lolaBlaster,
+                belcesword: !!save.powerUps.belcesword
+            };
+        } else {
+            this.player.powerup = this.selectedPowerup;
+        }
         this.resetGame(2);
     }
 
     quitToMainMenu() {
-        if (this.player && ((this.level === 1 && this.state === 'VICTORY') || (this.level === 2 && !this.player.dead))) {
+        if (this.player && ((this.level === 1 && (this.state === 'VICTORY' || this.postPepePowerupGate)) || (this.level === 2 && !this.player.dead))) {
             this.saveProgress();
         }
         this.closeShop();
+        this.closePowerupModal();
+        this.closeAdminPanel();
+        this.closeAdminPasswordModal();
         this.setPaused(false);
         this.runId++; // Invalida cualquier temporizador o callback pendiente
         this.state = 'MENU';
         this.player = null;
         this.enemies = [];
         this.projectiles = [];
+        this.puddles = [];
+        this.bombs = [];
+        this.postPepePowerupGate = false;
+        this.isPowerupOpen = false;
         this.pickups = [];
         this.particles = [];
         this.floatingTexts = [];
@@ -421,6 +810,9 @@ class Game {
         if (this.ui) {
             if (this.ui.bossHud) this.ui.bossHud.style.display = 'none';
             if (this.ui.prebossBar) this.ui.prebossBar.classList.add('hidden');
+            if (this.ui.waveSkipBar) this.ui.waveSkipBar.classList.add('hidden');
+            if (this.ui.powerupGateBar) this.ui.powerupGateBar.classList.add('hidden');
+            if (this.ui.powerupScreen) this.ui.powerupScreen.classList.add('hidden');
             if (this.ui.shopScreen) this.ui.shopScreen.classList.add('hidden');
             if (this.ui.gameoverScreen) this.ui.gameoverScreen.classList.add('hidden');
             if (this.ui.victoryScreen) this.ui.victoryScreen.classList.add('hidden');
@@ -570,6 +962,14 @@ class Game {
 
     setupInputs() {
         window.addEventListener('keydown', (e) => {
+            const activeTag = document.activeElement ? document.activeElement.tagName : '';
+            if (activeTag === 'INPUT' || activeTag === 'TEXTAREA') {
+                if (e.code === 'Escape') {
+                    this.closeAdminPasswordModal();
+                }
+                return;
+            }
+
             soundManager.init();
             this.keys[e.code] = true;
 
@@ -582,9 +982,11 @@ class Game {
 
             // Reintentar o Recargar Pistola / Rifle de Asalto manualmente con R
             if (e.code === 'KeyR' && !e.repeat) {
-                if (this.state === 'GAMEOVER' || this.state === 'VICTORY') {
+                if (this.state === 'GAMEOVER') {
+                    this.retryRun();
+                } else if (this.state === 'VICTORY') {
                     this.startNewRun();
-                } else if (!this.isPaused && !this.isShopOpen && (this.state === 'PLAYING' || this.state === 'BOSS_INTRO') && this.player && !this.player.dead) {
+                } else if (!this.isPaused && !this.isShopOpen && !this.isPowerupOpen && (this.state === 'PLAYING' || this.state === 'BOSS_INTRO') && this.player && !this.player.dead) {
                     if (this.player.currentWeapon === 'GUN') {
                         this.player.startPistolReload(this);
                     } else if (this.player.currentWeapon === 'RIFLE') {
@@ -595,6 +997,15 @@ class Game {
 
             // Pausa (Escape), cerrar tienda/modales o volver al Menú Principal
             if (e.code === 'Escape') {
+                const adminPassModal = document.getElementById('admin-password-modal');
+                if (adminPassModal && !adminPassModal.classList.contains('hidden')) {
+                    this.closeAdminPasswordModal();
+                    return;
+                }
+                if (this.isAdminOpen) {
+                    this.closeAdminPanel();
+                    return;
+                }
                 const patchModal = document.getElementById('patch-notes-modal');
                 if (patchModal && !patchModal.classList.contains('hidden')) {
                     this.closePatchNotesModal();
@@ -642,6 +1053,10 @@ class Game {
                 } else if (e.code === 'KeyT' && !e.repeat && this.preBossPrepare) {
                     if (this.isShopOpen) this.closeShop();
                     else this.openShop();
+                } else if (e.code === 'KeyE' && !e.repeat && this.isNearPowerupGate() && !this.isPowerupOpen) {
+                    this.openPowerupModal();
+                } else if (e.code === 'KeyE' && !e.repeat && this.isNearWaveGate() && !this.isShopOpen) {
+                    this.skipWaveCooldown();
                 } else if (e.code === 'KeyE' && !e.repeat && this.preBossPrepare && !this.isShopOpen) {
                     if (this.isNearDancer()) {
                         this.summonBossFromPrep();
@@ -664,6 +1079,7 @@ class Game {
         }, { passive: true });
 
         this.canvas.addEventListener('mousemove', (e) => {
+            if (this.isAnyMenuOpen && this.isAnyMenuOpen()) return;
             const rect = this.canvas.getBoundingClientRect();
             const scaleX = this.width / (rect.width || 1);
             const scaleY = this.height / (rect.height || 1);
@@ -700,8 +1116,30 @@ class Game {
                     return;
                 }
 
-                if (this.isPaused || this.isShopOpen) {
+                if (this.isPaused || this.isShopOpen || this.isPowerupOpen) {
                     return;
+                }
+
+                // Interacción por clic en la Puerta Mística de Power-Ups tras vencer a El Pepe
+                if (this.postPepePowerupGate && this.powerupGatePos) {
+                    const zoom = this.cameraZoom || 1.0;
+                    const wx = clickX / zoom + this.camera.x;
+                    const wy = clickY / zoom + this.camera.y;
+                    if (this.isNearPowerupGate() && MathUtils.dist(wx, wy, this.powerupGatePos.x, this.powerupGatePos.y) <= 105) {
+                        this.openPowerupModal();
+                        return;
+                    }
+                }
+
+                // Interacción por clic en la Puerta de Adelantar Oleada durante el interludio
+                if (this.isWaveSkipAvailable()) {
+                    const zoom = this.cameraZoom || 1.0;
+                    const wx = clickX / zoom + this.camera.x;
+                    const wy = clickY / zoom + this.camera.y;
+                    if (this.isNearWaveGate() && MathUtils.dist(wx, wy, this.waveGatePos.x, this.waveGatePos.y) <= 95) {
+                        this.skipWaveCooldown();
+                        return;
+                    }
                 }
 
                 // Interacción por clic en el mundo durante la Sala de Preparación Pre-Jefe
@@ -762,11 +1200,21 @@ class Game {
                     continue;
                 }
 
-                if (this.isPaused || this.isShopOpen) {
+                if (this.isPaused || this.isShopOpen || this.isPowerupOpen) {
                     continue;
                 }
 
                 if (this.state === 'PLAYING' || this.state === 'BOSS_INTRO') {
+                    // Interacción táctil sobre la Puerta Mística de Power-Ups tras El Pepe
+                    if (this.postPepePowerupGate && this.powerupGatePos) {
+                        const zoom = this.cameraZoom || 1.0;
+                        const wx = pos.x / zoom + this.camera.x;
+                        const wy = pos.y / zoom + this.camera.y;
+                        if (this.isNearPowerupGate() && MathUtils.dist(wx, wy, this.powerupGatePos.x, this.powerupGatePos.y) <= 115) {
+                            this.openPowerupModal();
+                            continue;
+                        }
+                    }
                     // 0. Círculos Táctiles de las 3 Pociones (junto al botón de DASH)
                     const potBtns = this.touchControls.buttons.potions;
                     if (potBtns && this.player && !this.player.dead) {
@@ -784,6 +1232,17 @@ class Game {
                             }
                         }
                         if (potionHit) continue;
+                    }
+
+                    // Interacción táctil directa sobre la Puerta de Oleada durante el interludio
+                    if (this.isWaveSkipAvailable()) {
+                        const zoom = this.cameraZoom || 1.0;
+                        const wx = pos.x / zoom + this.camera.x;
+                        const wy = pos.y / zoom + this.camera.y;
+                        if (this.isNearWaveGate() && MathUtils.dist(wx, wy, this.waveGatePos.x, this.waveGatePos.y) <= 105) {
+                            this.skipWaveCooldown();
+                            continue;
+                        }
                     }
 
                     // Interacción táctil directa sobre el puesto de Tienda o el Bailarín en el mundo
@@ -987,6 +1446,9 @@ class Game {
             potCountHeal: $('pot-count-heal'), potCountFury: $('pot-count-fury'), potCountSpeed: $('pot-count-speed'),
             potSlotHeal: $('pot-slot-heal'), potSlotFury: $('pot-slot-fury'), potSlotSpeed: $('pot-slot-speed'),
             prebossBar: $('preboss-bar'), btnOpenShopHud: $('btn-open-shop-hud'), btnSummonBoss: $('btn-summon-boss'),
+            waveSkipBar: $('wave-skip-bar'), btnSkipWave: $('btn-skip-wave'),
+            powerupGateBar: $('powerup-gate-bar'), btnOpenPowerupGate: $('btn-open-powerup-gate'),
+            powerupScreen: $('powerup-screen'),
             shopScreen: $('shop-screen'), shopGoldVal: $('shop-gold-val'),
             shopCountHeal: $('shop-count-heal'), shopCountFury: $('shop-count-fury'), shopCountSpeed: $('shop-count-speed'),
             btnBuyHeal: $('btn-buy-heal'), btnBuyFury: $('btn-buy-fury'), btnBuySpeed: $('btn-buy-speed')
@@ -1014,11 +1476,15 @@ class Game {
             'btn-patch-notes': () => this.openPatchNotesModal(),
             'btn-close-patch-notes': () => this.closePatchNotesModal(),
             'btn-continue': () => this.continueSavedGame(),
-            'btn-retry': () => this.startNewRun(),
+            'btn-retry': () => this.retryRun(),
             'btn-gameover-menu': () => this.quitToMainMenu(),
             'btn-play-again': () => this.startNewRun(),
             'btn-victory-menu': () => this.quitToMainMenu(),
             'btn-next-level': () => this.goToLevel2(),
+            'btn-open-powerup-gate': () => this.openPowerupModal(),
+            'btn-pick-bomba': () => this.selectPowerup('BOMBA_GRITO'),
+            'btn-pick-lola': () => this.selectPowerup('LOLA_BLASTER'),
+            'btn-pick-belce': () => this.selectPowerup('BELCESWORD'),
             'btn-controls': () => this.showMenuView('controls'),
             'btn-options': () => this.showMenuView('options'),
             'btn-back-controls': () => this.showMenuView('main'),
@@ -1034,11 +1500,71 @@ class Game {
             'btn-buy-fury': () => this.buyPotion('fury'),
             'btn-buy-speed': () => this.buyPotion('speed'),
             'btn-summon-boss': () => this.summonBossFromPrep(),
+            'btn-skip-wave': () => this.skipWaveCooldown(),
             'pot-slot-heal': () => { if (!this.isPaused && this.player) this.player.usePotion('heal', this); },
             'pot-slot-fury': () => { if (!this.isPaused && this.player) this.player.usePotion('fury', this); },
-            'pot-slot-speed': () => { if (!this.isPaused && this.player) this.player.usePotion('speed', this); }
+            'pot-slot-speed': () => { if (!this.isPaused && this.player) this.player.usePotion('speed', this); },
+            'btn-admin-access': () => {
+                if (this.isAdminUnlocked) this.openAdminPanel();
+                else this.openAdminPasswordModal();
+            },
+            'btn-admin-floating': () => {
+                if (this.isAdminUnlocked) this.openAdminPanel();
+            },
+            'btn-admin-pass-enter': () => this.submitAdminPassword(),
+            'btn-admin-pass-cancel': () => this.closeAdminPasswordModal(),
+            'btn-admin-tp-l1': () => this.adminTeleportLevel(1),
+            'btn-admin-tp-boss1': () => this.adminTeleportBoss(1),
+            'btn-admin-tp-l2': () => this.adminTeleportLevel(2),
+            'btn-admin-tp-boss2': () => this.adminTeleportBoss(2),
+            'btn-admin-tp-shop': () => this.adminTeleportShop(),
+            'btn-admin-skip-wave': () => this.adminSkipWave(),
+            'btn-admin-immortal': () => this.adminToggleImmortal(),
+            'btn-admin-infinite': () => this.adminToggleInfiniteItems(),
+            'btn-admin-weapon-sword': () => this.adminToggleWeapon('sword'),
+            'btn-admin-weapon-pistol': () => this.adminToggleWeapon('gun'),
+            'btn-admin-weapon-rifle': () => this.adminToggleWeapon('rifle'),
+            'btn-admin-unlock-weapons': () => this.adminUnlockAllWeapons(),
+            'btn-admin-pu-bomba': () => this.adminTogglePowerUp('BOMBA_GRITO'),
+            'btn-admin-pu-lola': () => this.adminTogglePowerUp('LOLA_BLASTER'),
+            'btn-admin-pu-belce': () => this.adminTogglePowerUp('BELCESWORD'),
+            'btn-admin-pu-all': () => this.adminEnableAllPowerUps(),
+            'btn-admin-close': () => this.closeAdminPanel(),
+            'btn-admin-lock': () => this.exitAdminMode()
         };
         for (const id in uiActions) bindUIButton(id, uiActions[id]);
+
+        const menuTitle = $('menu-title');
+        if (menuTitle) {
+            let lastTitleTapAt = 0;
+            const handleTitleTap = (e) => {
+                if (e.type === 'touchstart') {
+                    lastTitleTapAt = Date.now();
+                    if (e.cancelable) e.preventDefault();
+                } else if (Date.now() - lastTitleTapAt < 350) {
+                    return;
+                }
+                this.registerTitleClick();
+            };
+            menuTitle.addEventListener('click', handleTitleTap);
+            menuTitle.addEventListener('touchstart', handleTitleTap, { passive: false });
+        }
+
+        const adminPassInput = $('admin-password-input');
+        if (adminPassInput) {
+            adminPassInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    this.submitAdminPassword();
+                } else if (e.key === 'Escape') {
+                    e.preventDefault();
+                    this.closeAdminPasswordModal();
+                }
+            });
+        }
+
+        this.syncAdminButtonsVisibility();
+        this.syncAdminPanelUI();
         this.updateContinueButtonUI();
 
         // Control de Volumen General Sincronizado (Menú Principal y Pausa)
@@ -1115,6 +1641,9 @@ class Game {
         const ay = this.arena.y;
         const aw = this.arena.w;
         const ah = this.arena.h;
+        // Ubicada a un costado limpio del centro para no tapar el cartel superior ni al bailarín
+        this.waveGatePos = { x: ax + aw * 0.5 + 145, y: ay + ah * 0.5 };
+        this.powerupGatePos = { x: ax + aw * 0.5, y: ay + ah * 0.5 - 30 };
 
         if (!isL2) {
             this.pillars = [
@@ -1385,6 +1914,9 @@ class Game {
         if (this.ui.pauseScreen) this.ui.pauseScreen.classList.add('hidden');
         if (this.ui.shopScreen) this.ui.shopScreen.classList.add('hidden');
         if (this.ui.prebossBar) this.ui.prebossBar.classList.add('hidden');
+        if (this.ui.waveSkipBar) this.ui.waveSkipBar.classList.add('hidden');
+        if (this.ui.powerupGateBar) this.ui.powerupGateBar.classList.add('hidden');
+        if (this.ui.powerupScreen) this.ui.powerupScreen.classList.add('hidden');
         this.ui.bossHud.style.display = 'none';
 
         this.initArenaEnvironment();
@@ -1426,17 +1958,42 @@ class Game {
         p.gargoyleHitDecayTimer = 0;
         p.sleepTimer = 0;
         p.sleepImmunityTimer = 0;
+        p.poisonTimer = 0;
+        p.poisonTickTimer = 0;
+        p.poisonBubbleTimer = 0;
+        p.weaknessTimer = 0;
+        p.weaknessTextCooldown = 0;
+        p.belceSwingCount = 0;
+        p.activeSwingBelceThird = false;
+        p.lolaCharging = false;
+        p.lolaChargeTimer = 0;
+        p.lolaFireAnimTimer = 0;
+        p.lolaMouthTimer = 0;
+        p.lolaWaitRelease = false;
+        p.wasAttackHeld = false;
+        if (targetLevel === 2) {
+            if (this.selectedPowerup && p.setPowerUpEnabled) {
+                p.setPowerUpEnabled(this.selectedPowerup, true);
+            }
+        } else {
+            p.powerup = null;
+        }
         p.scaleX = p.scaleY = 1;
         p.afterimages = [];
         p.slashTrails = [];
         p.hitTargetsInSwing.clear();
 
         if (targetLevel === 2) this.applyLevel2Powerup();
+        if (this.isAdminUnlocked && this.applyAdminStateToPlayer) {
+            this.applyAdminStateToPlayer(p);
+        }
         p.hp = p.maxHp;
 
         // Limpiar todos los contenedores activos
         this.enemies = [];
         this.projectiles = [];
+        this.puddles = [];
+        this.bombs = [];
         this.particles = [];
         this.pickups = [];
         this.floatingTexts = [];
@@ -1448,6 +2005,8 @@ class Game {
         this.waveCooldown = 0;
         this.waveIntermission = false;
         this.preBossPrepare = false;
+        this.postPepePowerupGate = false;
+        this.isPowerupOpen = false;
         this.isShopOpen = false;
         this.waveTransitionTimer = 0;
         this.bossIntroTimer = 0;
@@ -1472,9 +2031,19 @@ class Game {
         this.updateHUD();
     }
 
-    // Reinicio completo desde el Nivel 1 (botones y tecla R)
+    // Reinicio completo desde el Nivel 1 (menú, victoria y nueva run)
     startNewRun() {
+        this.selectedPowerup = null;
         this.resetGame(1);
+    }
+
+    // Reintentar al morir: si estaba en Nivel 2, reinicia directamente en el Nivel 2 conservando Power-Up
+    retryRun() {
+        if (this.level === 2) {
+            this.resetGame(2);
+        } else {
+            this.startNewRun();
+        }
     }
 
     goToLevel2() {
@@ -1514,9 +2083,10 @@ class Game {
         const shooterCount = isL2 ? (3 + waveNum) : (1 + waveNum);
         const tankCount = isL2 ? (1 + Math.floor(waveNum * 0.8)) : 0;
         const gargoyleCount = isL2 ? (1 + Math.ceil(waveNum * 0.6)) : 0;
+        const villaCount = isL2 ? (1 + Math.floor(waveNum * 0.6)) : 0;
 
         // Calibración de oro por ronda: entre 3 y 5 bolsas de oro garantizadas en promedio por oleada
-        this.waveTotalEnemies = chaserCount + shooterCount + tankCount + gargoyleCount;
+        this.waveTotalEnemies = chaserCount + shooterCount + tankCount + gargoyleCount + villaCount;
         this.waveGoldDropped = 0;
         this.waveGoldTarget = MathUtils.randInt(3, 5);
 
@@ -1567,12 +2137,20 @@ class Game {
             this.spawnParticles(pt.x, pt.y, 12, '#c084fc', 130, true);
         }
 
+        for (let i = 0; i < villaCount; i++) {
+            const pt = spawnPointAwayFromPlayer();
+            this.enemies.push(new Enemy(pt.x, pt.y, 'VILLA', hpWave, this.level));
+            this.spawnParticles(pt.x, pt.y, 14, '#39ff14', 135, true);
+        }
+
         this.floatingTexts.push(new FloatingText(this.camera.x + this.width * 0.5, this.camera.y + this.height * 0.3, `¡OLEADA ${waveNum}!`, '#00f5d4', 24, true));
     }
 
     onEnemyKilled(enemy) {
         this.enemiesKilledCount++;
-        const killCol = enemy.archetype === 'TANK' ? '#f97316' : (enemy.archetype === 'GARGOYLE' ? '#c084fc' : (enemy.archetype === 'CHASER' ? '#f43f5e' : '#a855f7'));
+        const killCol = enemy.archetype === 'VILLA'
+            ? '#39ff14'
+            : (enemy.archetype === 'TANK' ? '#f97316' : (enemy.archetype === 'GARGOYLE' ? '#c084fc' : (enemy.archetype === 'CHASER' ? '#f43f5e' : '#a855f7')));
         this.spawnParticles(enemy.x, enemy.y, 18, killCol, 190, true);
 
         // Drop calibrado de moneda/bolsa de oro recolectable (promedio 3 a 5 de oro por ronda)
@@ -1638,6 +2216,38 @@ class Game {
     isNearShop() {
         if (!this.preBossPrepare || !this.player || this.player.dead) return false;
         return MathUtils.dist(this.player.x, this.player.y, this.shopPos.x, this.shopPos.y) < 120;
+    }
+
+    isWaveSkipAvailable() {
+        return this.state === 'PLAYING'
+            && !this.isPaused
+            && this.waveIntermission
+            && !this.preBossPrepare
+            && !this.boss
+            && this.waveCooldown > 0
+            && this.currentWave < this.maxWaves;
+    }
+
+    isNearWaveGate() {
+        if (!this.isWaveSkipAvailable() || !this.player || this.player.dead || !this.waveGatePos) return false;
+        return MathUtils.dist(this.player.x, this.player.y, this.waveGatePos.x, this.waveGatePos.y) < 110;
+    }
+
+    skipWaveCooldown() {
+        if (!this.isWaveSkipAvailable()) return;
+        this.waveCooldown = 0;
+        this.waveIntermission = false;
+        if (this.waveGatePos) {
+            this.spawnParticles(this.waveGatePos.x, this.waveGatePos.y, 26, '#00f5d4', 170, true);
+        }
+        if (this.currentWave < this.maxWaves) {
+            this.currentWave++;
+            this.spawnWave(this.currentWave);
+        } else {
+            this.setupPreBossRoom();
+        }
+        soundManager.playPickup();
+        this.updateHUD();
     }
 
     openShop() {
@@ -1746,8 +2356,10 @@ class Game {
         this.bossIntroDebris = [];
         this.bossIntroRocks = [];
 
-        // Limpiar proyectiles y bloquear acciones del jugador (Fix balas congeladas en Intro)
+        // Limpiar proyectiles/charcos y bloquear acciones del jugador (Fix balas congeladas en Intro)
         this.projectiles = [];
+        this.puddles = [];
+        if (this.ui && this.ui.waveSkipBar) this.ui.waveSkipBar.classList.add('hidden');
         this.mouse.down = false;
         if (this.touchControls) {
             this.touchControls.isAttackTouchHeld = false;
@@ -1761,6 +2373,9 @@ class Game {
             this.player.kbVy = 0;
             this.player.sleepTimer = 0;
             this.player.gargoyleHits = 0;
+            this.player.poisonTimer = 0;
+            this.player.poisonTickTimer = 0;
+            this.player.weaknessTimer = 0;
         }
 
         const cx = Number.isFinite(this.arena.x + this.arena.w * 0.5) ? (this.arena.x + this.arena.w * 0.5) : 550;
@@ -1782,6 +2397,7 @@ class Game {
         if (this.level === 1) {
             this.boss = new Boss(this.bossIntroLandX, this.bossIntroLandY, 1);
             soundManager.playBossRoar();
+            if (soundManager.playElPepe) soundManager.playElPepe();
             this.addScreenShake(4, 0.3);
         } else {
             this.boss = new Boss(this.bossIntroLandX, this.bossIntroLandY, 2);
@@ -1805,27 +2421,104 @@ class Game {
     }
 
     onBossDefeated(boss) {
+        if (this.level === 1) {
+            if (soundManager.playPepeMuerte) soundManager.playPepeMuerte();
+        } else {
+            if (soundManager.playRisinMuerte) soundManager.playRisinMuerte();
+        }
         this.addScreenShake(20, 0.8);
         this.spawnParticles(boss.x, boss.y, 90, '#fbbf24', 350, true);
         this.spawnParticles(boss.x, boss.y, 60, '#ef4444', 280, true);
         this.projectiles = [];
+        this.puddles = [];
+        if (this.ui && this.ui.bossHud) {
+            this.ui.bossHud.style.display = 'none';
+        }
 
         if (this.level === 1) {
             this.saveProgress();
+            const runId = this.runId;
+            setTimeout(() => {
+                if (runId !== this.runId || this.state === 'GAMEOVER') return;
+                this.spawnPowerupGate();
+            }, 900);
+            return;
         }
 
         const runId = this.runId;
         setTimeout(() => {
             if (runId !== this.runId || this.state === 'GAMEOVER') return; // ignorar si se reinició la partida
             this.state = 'VICTORY';
-            if (this.level === 1) this.saveProgress();
             this.configureVictoryScreen();
             this.ui.victoryStats.textContent = `Esbirros Abatidos: ${this.enemiesKilledCount} | Salud Restante: ${this.player.hp}/${this.player.maxHp}`;
             this.ui.victoryScreen.classList.remove('hidden');
         }, 900);
     }
 
+    spawnPowerupGate() {
+        this.postPepePowerupGate = true;
+        this.isPowerupOpen = false;
+        const ax = this.arena.x;
+        const ay = this.arena.y;
+        const aw = this.arena.w;
+        const ah = this.arena.h;
+        this.powerupGatePos = { x: ax + aw * 0.5, y: ay + ah * 0.5 - 30 };
+        this.spawnParticles(this.powerupGatePos.x, this.powerupGatePos.y, 40, '#ffd700', 210, true);
+        this.spawnParticles(this.powerupGatePos.x, this.powerupGatePos.y, 28, '#a855f7', 175, true);
+        this.floatingTexts.push(new FloatingText(this.powerupGatePos.x, this.powerupGatePos.y - 68, '¡PUERTA DE PODER ABIERTA! ELIGE TU POWER-UP', '#ffd700', 19, true));
+        soundManager.playPickup();
+        this.updateHUD();
+    }
+
+    isNearPowerupGate() {
+        if (!this.postPepePowerupGate || this.state !== 'PLAYING' || !this.player || this.player.dead || !this.powerupGatePos) return false;
+        return MathUtils.dist(this.player.x, this.player.y, this.powerupGatePos.x, this.powerupGatePos.y) < 115;
+    }
+
+    openPowerupModal() {
+        if (!this.postPepePowerupGate || this.state !== 'PLAYING' || this.isPaused) return;
+        this.isPowerupOpen = true;
+        this.mouse.down = false;
+        if (this.touchControls) {
+            this.touchControls.isAttackTouchHeld = false;
+            this.touchControls.joystick.active = false;
+            this.touchControls.joystick.dirX = 0;
+            this.touchControls.joystick.dirY = 0;
+        }
+        if (this.ui && this.ui.powerupGateBar) this.ui.powerupGateBar.classList.add('hidden');
+        if (this.ui && this.ui.powerupScreen) this.ui.powerupScreen.classList.remove('hidden');
+    }
+
+    closePowerupModal() {
+        this.isPowerupOpen = false;
+        if (this.ui && this.ui.powerupScreen) this.ui.powerupScreen.classList.add('hidden');
+    }
+
+    selectPowerup(choice) {
+        if (!choice) return;
+        this.selectedPowerup = choice;
+        if (this.player && this.player.setPowerUpEnabled) {
+            this.player.setPowerUpEnabled(choice, true);
+        } else if (this.player) {
+            this.player.powerup = choice;
+        }
+        this.postPepePowerupGate = false;
+        this.closePowerupModal();
+        this.saveProgress();
+        this.resetGame(2);
+        const labelMap = {
+            BOMBA_GRITO: '¡POWER-UP: BOMBA GRITO!',
+            LOLA_BLASTER: '¡POWER-UP: LOLA BLASTER!',
+            BELCESWORD: '¡POWER-UP: BELCESWORD!'
+        };
+        if (this.player) {
+            this.floatingTexts.push(new FloatingText(this.player.x, this.player.y - 102, labelMap[choice] || '¡POWER-UP EQUIPADO!', '#00f5d4', 20, true));
+        }
+        soundManager.playPickup();
+    }
+
     onPlayerDeath() {
+        if (soundManager.playMuerteOxxo) soundManager.playMuerteOxxo();
         this.addScreenShake(16, 0.5);
         this.spawnParticles(this.player.x, this.player.y, 45, '#ef4444', 250, true);
         this.state = 'GAMEOVER';
@@ -1866,43 +2559,47 @@ class Game {
             if (this.shakeTimer <= 0) this.shakeIntensity = 0;
         }
 
-        // Chispas y humo ambiental de las antorchas (Minecraft Voxel Particles)
-        const torchChance = this.lowSpecMode ? 0.14 : 0.35;
-        if ((!this.lowSpecMode || this.particles.length < 35) && Math.random() < torchChance) {
-            const t = this.torches[MathUtils.randInt(0, this.torches.length - 1)];
-            const isSmoke = Math.random() < 0.28;
-            this.particles.push(new Particle(
-                t.x + MathUtils.randRange(-3, 3),
-                t.y - 10 + MathUtils.randRange(-2, 2),
-                MathUtils.randRange(-10, 10),
-                MathUtils.randRange(-40, -18),
-                MathUtils.randRange(1.8, 3.2),
-                isSmoke ? '#52525b' : (Math.random() < 0.6 ? '#f97316' : '#fde047'),
-                isSmoke ? 0.55 : 0.42,
-                0.96,
-                this.lowSpecMode ? false : !isSmoke,
-                true // isSquare: true
-            ));
-        }
+        // Ahorro de CPU/GPU: Evitar generar partículas ambientales si hay menús, modales o pausa activos
+        const inMenuOrPaused = this.state === 'MENU' || this.isPaused || this.isAdminOpen || (this.isAnyMenuOpen && this.isAnyMenuOpen());
+        if (!inMenuOrPaused) {
+            // Chispas y humo ambiental de las antorchas (Minecraft Voxel Particles)
+            const torchChance = this.lowSpecMode ? 0.14 : 0.35;
+            if ((!this.lowSpecMode || this.particles.length < 35) && Math.random() < torchChance) {
+                const t = this.torches[MathUtils.randInt(0, this.torches.length - 1)];
+                const isSmoke = Math.random() < 0.28;
+                this.particles.push(new Particle(
+                    t.x + MathUtils.randRange(-3, 3),
+                    t.y - 10 + MathUtils.randRange(-2, 2),
+                    MathUtils.randRange(-10, 10),
+                    MathUtils.randRange(-40, -18),
+                    MathUtils.randRange(1.8, 3.2),
+                    isSmoke ? '#52525b' : (Math.random() < 0.6 ? '#f97316' : '#fde047'),
+                    isSmoke ? 0.55 : 0.42,
+                    0.96,
+                    this.lowSpecMode ? false : !isSmoke,
+                    true // isSquare: true
+                ));
+            }
 
-        // Chispas de fuego pixeladas del Mob Spawner central
-        const spawnerChance = this.lowSpecMode ? 0.12 : 0.3;
-        if ((!this.lowSpecMode || this.particles.length < 35) && this.state === 'PLAYING' && Math.random() < spawnerChance) {
-            const spSel = this.spawners[MathUtils.randInt(0, this.spawners.length - 1)];
-            const spawnerX = spSel.x;
-            const spawnerY = spSel.y;
-            this.particles.push(new Particle(
-                spawnerX + MathUtils.randRange(-14, 14),
-                spawnerY + MathUtils.randRange(-14, 14),
-                MathUtils.randRange(-18, 18),
-                MathUtils.randRange(-35, -12),
-                MathUtils.randRange(1.8, 3.4),
-                Math.random() < 0.55 ? '#ea580c' : '#facc15',
-                0.48,
-                0.95,
-                this.lowSpecMode ? false : true,
-                true // isSquare: true
-            ));
+            // Chispas de fuego pixeladas del Mob Spawner central
+            const spawnerChance = this.lowSpecMode ? 0.12 : 0.3;
+            if ((!this.lowSpecMode || this.particles.length < 35) && this.state === 'PLAYING' && Math.random() < spawnerChance) {
+                const spSel = this.spawners[MathUtils.randInt(0, this.spawners.length - 1)];
+                const spawnerX = spSel.x;
+                const spawnerY = spSel.y;
+                this.particles.push(new Particle(
+                    spawnerX + MathUtils.randRange(-14, 14),
+                    spawnerY + MathUtils.randRange(-14, 14),
+                    MathUtils.randRange(-18, 18),
+                    MathUtils.randRange(-35, -12),
+                    MathUtils.randRange(1.8, 3.4),
+                    Math.random() < 0.55 ? '#ea580c' : '#facc15',
+                    0.48,
+                    0.95,
+                    this.lowSpecMode ? false : true,
+                    true // isSquare: true
+                ));
+            }
         }
 
         // Límite estricto de partículas en modo bajo rendimiento
@@ -1919,6 +2616,10 @@ class Game {
         }
 
         if (this.state === 'BOSS_INTRO') {
+            if (this.isAdminOpen) {
+                this.updateHUD();
+                return;
+            }
             this.projectiles = [];
             const maxT = Number.isFinite(this.bossIntroMaxTime) && this.bossIntroMaxTime > 0 ? this.bossIntroMaxTime : 3.5;
             if (!Number.isFinite(this.bossIntroTimer)) this.bossIntroTimer = maxT;
@@ -2078,10 +2779,26 @@ class Game {
                 this.updateCamera(0, true);
             }
         } else if (this.state === 'PLAYING') {
+            if (this.isPowerupOpen || this.isAdminOpen) {
+                this.updateHUD();
+                return;
+            }
             this.player.update(dt, this);
 
             // Actualizar Pilares
             for (const p of this.pillars) p.update(dt);
+
+            // Actualizar Bombas Grito plantadas por Dash
+            for (let i = this.bombs.length - 1; i >= 0; i--) {
+                this.bombs[i].update(dt, this);
+                if (this.bombs[i].dead) this.bombs.splice(i, 1);
+            }
+
+            // Actualizar Charcos Debilitadores (Risín Pepín)
+            for (let i = this.puddles.length - 1; i >= 0; i--) {
+                this.puddles[i].update(dt, this);
+                if (this.puddles[i].dead) this.puddles.splice(i, 1);
+            }
 
             // Actualizar Orbes de Botín
             for (let i = this.pickups.length - 1; i >= 0; i--) {
@@ -2107,7 +2824,7 @@ class Game {
             }
 
             // Control de progresión de Oleadas: 10s de descanso en rondas 1-4; Sala Pre-Jefe sin límite tras Ronda 5
-            if (this.enemies.length === 0 && !this.boss && this.state === 'PLAYING') {
+            if (this.enemies.length === 0 && !this.boss && !this.postPepePowerupGate && this.state === 'PLAYING') {
                 if (!this.waveIntermission) {
                     this.waveIntermission = true;
                     if (this.currentWave >= this.maxWaves) {
@@ -2177,6 +2894,18 @@ class Game {
             }
         }
 
+        // Botón emergente para adelantar la oleada junto a la Puerta de Oleada
+        if (this.ui.waveSkipBar) {
+            const showSkip = this.isNearWaveGate() && !this.isShopOpen && !this.isPowerupOpen;
+            this.ui.waveSkipBar.classList.toggle('hidden', !showSkip);
+        }
+
+        // Botón emergente para abrir el Santuario de Power-Ups tras vencer a El Pepe
+        if (this.ui.powerupGateBar) {
+            const showPowerGate = this.isNearPowerupGate() && !this.isPowerupOpen && !this.isPaused;
+            this.ui.powerupGateBar.classList.toggle('hidden', !showPowerGate);
+        }
+
         const dashReadyPct = this.player.dashCooldownTimer <= 0
             ? 100
             : (1 - this.player.dashCooldownTimer / this.player.dashCooldown) * 100;
@@ -2184,7 +2913,10 @@ class Game {
         this.ui.dashText.textContent = this.player.dashCooldownTimer <= 0 ? 'LISTO' : 'RECARGANDO';
 
         if (!this.boss) {
-            if (this.preBossPrepare) {
+            if (this.postPepePowerupGate) {
+                this.ui.waveCounter.textContent = 'SANTUARIO DE POWER-UP';
+                this.ui.waveCounter.style.color = '#ffd700';
+            } else if (this.preBossPrepare) {
                 this.ui.waveCounter.textContent = `PREPARACIÓN PRE-JEFE (5 / ${this.maxWaves})`;
                 this.ui.waveCounter.style.color = '#ffd700';
             } else {
@@ -2195,23 +2927,28 @@ class Game {
 
         // Indicador de Arma en el HUD
         if (this.ui.weaponName) {
+            const hasBelce = this.player.hasPowerUp ? this.player.hasPowerUp('BELCESWORD') : this.player.powerup === 'BELCESWORD';
+            const hasLola = this.player.hasPowerUp ? this.player.hasPowerUp('LOLA_BLASTER') : this.player.powerup === 'LOLA_BLASTER';
+            const swordBaseName = hasBelce ? 'BELCESWORD' : 'ESPADA';
+            const gunBaseName = hasLola ? 'LOLA BLASTER' : 'PISTOLA';
+
             if (this.player.currentWeapon === 'RIFLE') {
                 if (this.player.isReloadingRifle) {
                     this.ui.weaponName.textContent = '[3] RIFLE (RECARGANDO...)';
                 } else {
-                    this.ui.weaponName.textContent = `[3] RIFLE (${this.player.rifleAmmo}/${this.player.rifleMaxAmmo})`;
+                    this.ui.weaponName.textContent = `[3] RIFLE (${this.player.infiniteItems ? '∞' : this.player.rifleAmmo + '/' + this.player.rifleMaxAmmo})`;
                 }
                 this.ui.weaponName.style.color = '#fbbf24';
             } else if (this.player.currentWeapon === 'GUN') {
                 if (this.player.isReloadingPistol) {
-                    this.ui.weaponName.textContent = '[2] PISTOLA (RECARGANDO...)';
+                    this.ui.weaponName.textContent = `[2] ${gunBaseName} (RECARGANDO...)`;
                 } else {
-                    this.ui.weaponName.textContent = `[2] PISTOLA (${this.player.pistolAmmo}/${this.player.pistolMaxAmmo})`;
+                    this.ui.weaponName.textContent = `[2] ${gunBaseName} (${this.player.infiniteItems ? '∞' : this.player.pistolAmmo + '/' + this.player.pistolMaxAmmo})`;
                 }
-                this.ui.weaponName.style.color = '#38bdf8';
+                this.ui.weaponName.style.color = hasLola ? '#00f5d4' : '#38bdf8';
             } else {
-                this.ui.weaponName.textContent = '[1] ESPADA';
-                this.ui.weaponName.style.color = '#00f5d4';
+                this.ui.weaponName.textContent = `[1] ${swordBaseName}`;
+                this.ui.weaponName.style.color = hasBelce ? '#c084fc' : '#00f5d4';
             }
             if (this.ui.weaponHint) {
                 const cw = this.player.currentWeapon;
@@ -2222,21 +2959,25 @@ class Game {
                     return `<span style="display:inline-block;margin-right:4px;padding:1px 5px;border:${border};color:${color};opacity:${owned ? 1 : 0.5};text-shadow:2px 2px 4px rgba(0,0,0,0.95);background:rgba(15,23,42,0.45);border-radius:2px;">${n}:${label}${owned ? '' : ' 🔒'}</span>`;
                 };
                 const pistolLabel = this.player.hasGun
-                    ? (this.player.isReloadingPistol ? 'PISTOLA (RECARGANDO...)' : `PISTOLA (${this.player.pistolAmmo}/${this.player.pistolMaxAmmo})`)
-                    : 'PISTOLA';
+                    ? (this.player.isReloadingPistol ? `${gunBaseName} (RECARGANDO...)` : `${gunBaseName} (${this.player.infiniteItems ? '∞' : this.player.pistolAmmo + '/' + this.player.pistolMaxAmmo})`)
+                    : gunBaseName;
                 const rifleLabel = this.player.hasRifle
-                    ? (this.player.isReloadingRifle ? 'RIFLE (RECARGANDO...)' : `RIFLE (${this.player.rifleAmmo}/${this.player.rifleMaxAmmo})`)
+                    ? (this.player.isReloadingRifle ? 'RIFLE (RECARGANDO...)' : `RIFLE (${this.player.infiniteItems ? '∞' : this.player.rifleAmmo + '/' + this.player.rifleMaxAmmo})`)
                     : 'RIFLE';
                 this.ui.weaponHint.innerHTML =
-                    slot(1, 'ESPADA', true, 'SWORD') +
+                    slot(1, swordBaseName, this.player.hasSword !== false, 'SWORD') +
                     slot(2, pistolLabel, this.player.hasGun, 'GUN') +
                     slot(3, rifleLabel, this.player.hasRifle, 'RIFLE') + ' [Q]';
             }
         }
 
-        // Indicador de mejoras activas (Orbes y Pociones) y estado de sueño
+        // Indicador de mejoras activas (Orbes, Pociones, Admin y estado de sueño / veneno / debilidad)
         const buffs = [];
+        if (this.player.isImmortal) buffs.push('🛡️ INMORTAL');
+        if (this.player.infiniteItems) buffs.push('♾️ INFINITO');
         if (this.player.sleepTimer > 0) buffs.push(`💤 ¡DORMIDO! (${this.player.sleepTimer.toFixed(1)}s)`);
+        if (this.player.poisonTimer > 0) buffs.push(`☠️ ENVENENADO (${this.player.poisonTimer.toFixed(1)}s)`);
+        if (this.player.weaknessTimer > 0) buffs.push(`🧪 DAÑO -10% (${this.player.weaknessTimer.toFixed(1)}s)`);
         if (this.player.furyPotionTimer > 0) buffs.push(`POCIÓN FURIA +30% (${this.player.furyPotionTimer.toFixed(1)}s)`);
         if (this.player.speedPotionTimer > 0) buffs.push(`POCIÓN VEL +30% (${this.player.speedPotionTimer.toFixed(1)}s)`);
         if (this.player.damageBoostTimer > 0) buffs.push(`FURIA (${this.player.damageBoostTimer.toFixed(1)}s)`);
@@ -2351,8 +3092,9 @@ class Game {
             const flicker = Math.sin(this.globalTime * 10 + t.x * 0.1) * 6 + Math.cos(this.globalTime * 18 + t.y * 0.1) * 4;
             const lightRadius = 145 + flicker;
 
-            // Iluminación cálida radial dinámica en baldosas cercanas
-            if (this.lowSpecMode) {
+            // Iluminación cálida radial dinámica en baldosas cercanas (modo ahorro activo con menús/pausa o bajo rendimiento)
+            const inMenuOrPaused = this.state === 'MENU' || this.isPaused || this.isAdminOpen || (this.isAnyMenuOpen && this.isAnyMenuOpen());
+            if (this.lowSpecMode || inMenuOrPaused) {
                 if (this.offscreenLightCanvas) {
                     const r = 145;
                     ctx.drawImage(this.offscreenLightCanvas, t.x - r, t.y - 4 - r, r * 2, r * 2);
@@ -2581,6 +3323,144 @@ class Game {
         ctx.shadowColor = '#fbbf24';
         ctx.shadowBlur = 8;
         ctx.fillText(timerText, cx, bannerY + 15);
+        ctx.restore();
+
+        // Puerta interactiva en la parte superior central para adelantar la oleada
+        this.drawWaveSkipGate(ctx);
+    }
+
+    drawWaveSkipGate(ctx) {
+        if (!this.waveGatePos || !this.isWaveSkipAvailable()) return;
+        const gx = this.waveGatePos.x;
+        const gy = this.waveGatePos.y;
+        const near = this.isNearWaveGate();
+        const pulse = 0.72 + Math.sin(this.globalTime * 6) * 0.28;
+
+        ctx.save();
+        ctx.translate(gx, gy);
+
+        // Aura mágica en el suelo frente a la puerta
+        const floorGlow = ctx.createRadialGradient(0, 10, 6, 0, 10, 74);
+        floorGlow.addColorStop(0, near ? 'rgba(0, 245, 212, 0.42)' : 'rgba(56, 189, 248, 0.24)');
+        floorGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = floorGlow;
+        ctx.beginPath();
+        ctx.ellipse(0, 12, 74, 34, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Arco de piedra de la Puerta de Oleada
+        ctx.fillStyle = '#334155';
+        ctx.strokeStyle = near ? '#00f5d4' : '#64748b';
+        ctx.lineWidth = near ? 3 : 2;
+        ctx.beginPath();
+        ctx.roundRect(-34, -34, 68, 56, [24, 24, 4, 4]);
+        ctx.fill();
+        ctx.stroke();
+
+        // Portal energético interior
+        const portalGrad = ctx.createLinearGradient(0, -24, 0, 18);
+        portalGrad.addColorStop(0, `rgba(0, 245, 212, ${0.85 * pulse})`);
+        portalGrad.addColorStop(0.55, `rgba(16, 185, 129, ${0.75 * pulse})`);
+        portalGrad.addColorStop(1, 'rgba(6, 78, 59, 0.9)');
+        ctx.fillStyle = portalGrad;
+        ctx.beginPath();
+        ctx.roundRect(-22, -24, 44, 42, [16, 16, 2, 2]);
+        ctx.fill();
+
+        // Símbolo de avance rápido (>>) dentro del portal
+        ctx.fillStyle = '#ecfeff';
+        ctx.font = 'bold 16px "Courier New", monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('>>', 0, -3);
+
+        // Etiqueta superior fija
+        ctx.font = 'bold 11px "Courier New", monospace';
+        ctx.strokeStyle = '#090d16';
+        ctx.lineWidth = 3;
+        const headerLabel = `PUERTA DE OLEADA (${this.currentWave + 1}/${this.maxWaves})`;
+        ctx.strokeText(headerLabel, 0, -45);
+        ctx.fillStyle = '#67e8f9';
+        ctx.fillText(headerLabel, 0, -45);
+
+        // Prompt interactivo
+        const promptText = near
+            ? '[E / TOCAR AQUÍ]: ADELANTAR OLEADA (SKIP)'
+            : 'ACÉRCATE PARA ADELANTAR OLEADA';
+        ctx.font = near ? 'bold 12px "Courier New", monospace' : 'bold 10px "Courier New", monospace';
+        ctx.strokeText(promptText, 0, 36);
+        ctx.fillStyle = near ? '#fbbf24' : '#94a3b8';
+        ctx.fillText(promptText, 0, 36);
+
+        ctx.restore();
+    }
+
+    drawPowerupGate(ctx) {
+        if (!this.postPepePowerupGate || !this.powerupGatePos) return;
+        const gx = this.powerupGatePos.x;
+        const gy = this.powerupGatePos.y;
+        const near = this.isNearPowerupGate();
+        const pulse = 0.72 + Math.sin(this.globalTime * 5.5) * 0.28;
+
+        ctx.save();
+        ctx.translate(gx, gy);
+
+        // Aura dorada/arcana sobre el suelo
+        const glow = ctx.createRadialGradient(0, 14, 10, 0, 14, 98);
+        glow.addColorStop(0, near ? 'rgba(255, 215, 0, 0.48)' : 'rgba(168, 85, 247, 0.32)');
+        glow.addColorStop(0.6, 'rgba(0, 245, 212, 0.16)');
+        glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
+        ctx.fillStyle = glow;
+        ctx.beginPath();
+        ctx.ellipse(0, 16, 98, 44, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Pilares y arco místico dorado
+        ctx.fillStyle = '#1e1b4b';
+        ctx.strokeStyle = near ? '#ffd700' : '#a855f7';
+        ctx.lineWidth = near ? 3.5 : 2.5;
+        ctx.beginPath();
+        ctx.roundRect(-44, -52, 88, 76, [36, 36, 6, 6]);
+        ctx.fill();
+        ctx.stroke();
+
+        // Núcleo de energía cósmica
+        const portalGrad = ctx.createLinearGradient(0, -40, 0, 20);
+        portalGrad.addColorStop(0, `rgba(251, 191, 36, ${0.9 * pulse})`);
+        portalGrad.addColorStop(0.5, `rgba(168, 85, 247, ${0.85 * pulse})`);
+        portalGrad.addColorStop(1, 'rgba(0, 245, 212, 0.78)');
+        ctx.fillStyle = portalGrad;
+        ctx.beginPath();
+        ctx.roundRect(-30, -38, 60, 58, [26, 26, 4, 4]);
+        ctx.fill();
+
+        // Símbolo estelar central
+        ctx.fillStyle = '#ffffff';
+        ctx.shadowColor = '#ffd700';
+        ctx.shadowBlur = 14;
+        ctx.font = 'bold 22px "Courier New", monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText('★', 0, -9);
+
+        // Letrero visible siempre
+        ctx.shadowBlur = 0;
+        ctx.font = '900 13px "Courier New", monospace';
+        ctx.strokeStyle = '#090d16';
+        ctx.lineWidth = 3.5;
+        const title = 'PUERTA DE PODER - ACÉRCATE [E / TOCAR]';
+        ctx.strokeText(title, 0, -68);
+        ctx.fillStyle = '#ffd700';
+        ctx.fillText(title, 0, -68);
+
+        if (near) {
+            const sub = '[E / TOCAR AQUÍ]: ELEGIR POWER-UP PARA NIVEL 2';
+            ctx.font = '900 12px "Courier New", monospace';
+            ctx.strokeText(sub, 0, 40);
+            ctx.fillStyle = '#00f5d4';
+            ctx.fillText(sub, 0, 40);
+        }
+
         ctx.restore();
     }
 
@@ -3300,7 +4180,8 @@ class Game {
         const ctx = this.ctx;
         ctx.save();
 
-        if (this.lowSpecMode) {
+        const inMenuOrPaused = this.state === 'MENU' || this.isPaused || this.isAdminOpen || (this.isAnyMenuOpen && this.isAnyMenuOpen());
+        if (inMenuOrPaused || this.lowSpecMode) {
             ctx.shadowBlur = 0;
         }
 
@@ -3332,6 +4213,10 @@ class Game {
             this.drawArenaDungeon(ctx);
 
             if (this.state !== 'MENU') {
+                // 1.5. Charcos Debilitadores en el suelo (Risín Pepín) y Bombas Grito
+                for (const puddle of this.puddles) puddle.draw(ctx);
+                for (const bomb of this.bombs) bomb.draw(ctx);
+
                 // 2. Orbes de Botín
                 for (const item of this.pickups) item.draw(ctx);
 
@@ -3341,6 +4226,11 @@ class Game {
                 // 3.5. Sala de Preparación Pre-Jefe (Tienda de Pociones y Muñeco Azul Bailarín)
                 if (this.preBossPrepare && !this.boss) {
                     this.drawPreBossRoom(ctx);
+                }
+
+                // 3.6. Puerta Mística de Power-Ups tras vencer a El Pepe (Nivel 1)
+                if (this.postPepePowerupGate) {
+                    this.drawPowerupGate(ctx);
                 }
 
                 // 4. Enemigos
@@ -3703,6 +4593,7 @@ class Game {
     }
 
     syncMouseWorld() {
+        if (this.isAnyMenuOpen && this.isAnyMenuOpen()) return;
         const zoom = this.cameraZoom || 1.0;
         this.mouse.worldX = this.mouse.x / zoom + this.camera.x;
         this.mouse.worldY = this.mouse.y / zoom + this.camera.y;
@@ -3720,7 +4611,7 @@ class Game {
 
         try {
             this.syncMouseWorld();
-            if (!this.isPaused) {
+            if (!this.isPaused && !this.isAdminOpen) {
                 this.update(dt);
                 this.updateCamera(dt);
                 this.syncMouseWorld();

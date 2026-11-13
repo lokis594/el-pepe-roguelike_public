@@ -49,10 +49,17 @@
             <button id="btn-open-shop-hud" class="btn-action btn-preboss-shop">🛒 ABRIR TIENDA [T]</button>
             <button id="btn-summon-boss" class="btn-action btn-preboss-summon hidden">[E / TOCAR AQUÍ]: ¡IR A POR EL PEPE!</button>
         </div>
+        <div id="wave-skip-bar" class="preboss-bar hidden">
+            <button id="btn-skip-wave" class="btn-action btn-preboss-summon">[E / TOCAR AQUÍ]: ADELANTAR OLEADA (SKIP)</button>
+        </div>
+        <div id="powerup-gate-bar" class="preboss-bar hidden">
+            <button id="btn-open-powerup-gate" class="btn-action btn-preboss-shop">[E / TOCAR AQUÍ]: ELEGIR POWER-UP (NIVEL 2)</button>
+        </div>
     </div>
     <div id="menu-screen" class="overlay-screen">
+        <button id="btn-admin-access" class="btn-admin-corner hidden" title="Acceso Admin">🛠️ ADMIN</button>
         <div class="title-container">
-            <div class="title-main">CRÓNICAS DEL ABISMO</div>
+            <div class="title-main" id="menu-title">CRÓNICAS DEL ABISMO</div>
             <div class="minecraft-splash">hecho por lokis594</div>
         </div>
         <div class="subtitle">LA GUARIDA DE EL PEPE MAESTRO</div>
@@ -187,6 +194,30 @@
         </div>
         <button id="btn-close-shop" class="btn-action btn-back" style="margin-top: 14px;">CERRAR TIENDA</button>
     </div>
+    <div id="powerup-screen" class="overlay-screen hidden">
+        <div class="title-main powerup-title">ELIGE TU POWER-UP PARA EL NIVEL 2</div>
+        <div class="subtitle" style="margin-bottom: 14px;">EL PEPE MAESTRO HA CAÍDO — SELECCIONA 1 RELIQUIA PERMANENTE</div>
+        <div class="shop-cards-row powerup-cards-row">
+            <div class="shop-card powerup-card-bomba">
+                <img src="Bomba_grito.png" onerror="if(!this._retried){this._retried=true;this.src='bomba_grito.png';}" alt="Bomba Grito" class="powerup-img">
+                <div class="shop-card-name" style="color:#f97316;">BOMBA GRITO</div>
+                <div class="shop-card-desc">Al hacer <b>Dash</b> dejas una bomba que explota tras 0.65s en área (67px) quitando el <b>50% de vida máxima</b> a los enemigos.</div>
+                <button id="btn-pick-bomba" class="btn-action btn-shop-buy" style="border-color:#f97316; color:#f97316;">ELEGIR BOMBA GRITO</button>
+            </div>
+            <div class="shop-card powerup-card-lola">
+                <img src="Lola_Blaster.png" onerror="if(!this._retried){this._retried=true;this.src='lola_blaster.png';}" alt="Lola Blaster" class="powerup-img">
+                <div class="shop-card-name" style="color:#00f5d4;">LOLA BLASTER</div>
+                <div class="shop-card-desc">Reemplaza la pistola (<b>+52% daño</b>). Mantén disparar <b>1.5s</b>: crece progresivamente y dispara un <b>Orbe de Energía</b> gigante (+45% daño) que traspasa enemigos con daño AoE.</div>
+                <button id="btn-pick-lola" class="btn-action btn-shop-buy" style="border-color:#00f5d4; color:#00f5d4;">ELEGIR LOLA BLASTER</button>
+            </div>
+            <div class="shop-card powerup-card-belce">
+                <img src="Belcesword.png" onerror="if(!this._retried){this._retried=true;this.src='belcesword.png';}" alt="Belcesword" class="powerup-img">
+                <div class="shop-card-name" style="color:#c084fc;">BELCESWORD</div>
+                <div class="shop-card-desc">Reemplaza la espada (<b>+10% daño</b>, +50% empuje, -10% vel. ataque). <b>Cada 3er ataque</b> es gigante e inflige <b>+30% de daño</b>.</div>
+                <button id="btn-pick-belce" class="btn-action btn-shop-buy" style="border-color:#c084fc; color:#c084fc;">ELEGIR BELCESWORD</button>
+            </div>
+        </div>
+    </div>
     <div id="newgame-confirm-modal" class="overlay-screen hidden" style="z-index: 80;">
         <div class="confirm-warning-box">
             <div class="confirm-warning-title">⚠️ ADVERTENCIA DE PROGRESO</div>
@@ -199,19 +230,16 @@
     </div>
     <div id="patch-notes-modal" class="overlay-screen hidden" style="z-index: 85;">
         <div class="patch-notes-box">
-            <div class="patch-notes-header">📋 NOTAS DEL PARCHE - VERSIÓN 1.5.0</div>
+            <div class="patch-notes-header">📋 NOTAS DEL PARCHE - VERSIÓN 1.8.1</div>
             <div class="patch-notes-scroll">
                 <div class="patch-version-block">
-                    <div class="patch-version-title">Versión 1.5.0 (Actual)</div>
+                    <div class="patch-version-title">Versión 1.8.1 (Actual)</div>
                     <ul class="patch-list">
-                        <li><b>Rediseño del Nivel 2 y Nuevo Enemigo:</b>
-                            <br>• <b>Mapa más compacto e intenso:</b> El mapa del Nivel 2 ahora es solo un +15% más grande que el Nivel 1 (<code>1.15x</code>) con mayor presión y cantidad de enemigos por oleada, haciendo el Nivel 2 notablemente más desafiante.
-                            <br>• <b>Nuevo enemigo — Gárgolas Veloces:</b> Criaturas aladas un 25% más rápidas que el jugador. No infligen daño directo de vida, pero si te alcanzan <b>2 veces seguidas</b>, caerás dormido durante <b>1.8 segundos</b> (<code>"Zzz..."</code>), quedando vulnerable a la horda.
+                        <li><b>Rendimiento y Fluidez:</b>
+                            <br>• <b>Optimización de Menús y Modo Admin:</b> Corregida la caída de FPS al desplazar el cursor sobre los botones y opciones de los menús eliminando capas de desenfoque costosas y acelerando transiciones por GPU.
                         </li>
-                        <li><b>Cinemáticas de Jefes y Correcciones:</b>
-                            <br>• <b>Nueva intro de El Pepe Maestro (Nivel 1):</b> Observa desde lo alto de una torre oscura y salta épicamente hacia la arena antes del combate.
-                            <br>• <b>Nueva intro de Risín Pepín (Nivel 2):</b> Una puerta misteriosa tiembla con risas de payaso en 8 bits y golpes secos antes de estallar en pedazos al iniciar la pelea.
-                            <br>• <b>Corrección de proyectiles en intro:</b> Se corrigió el fallo que permitía disparar y acumular balas congeladas en el aire durante la cinemática de presentación de los jefes.
+                        <li><b>Balance de Power-Ups:</b>
+                            <br>• <b>Bomba Grito:</b> Se redujo el radio de explosión en un <b>50%</b> (área concentrada a 67px), manteniendo intacto su daño letal del <b>50% de la vida máxima</b>.
                         </li>
                     </ul>
                 </div>
@@ -219,9 +247,69 @@
             <button id="btn-close-patch-notes" class="btn-action btn-back" style="margin-top: 14px;">CERRAR / ATRÁS</button>
         </div>
     </div>
+    <div id="admin-password-modal" class="overlay-screen hidden" style="z-index: 105;">
+        <div class="admin-modal-box admin-password-box">
+            <div class="admin-modal-header">🔐 MODO ADMIN SECRETO</div>
+            <p class="admin-modal-subtitle">Introduce la contraseña de creador para desbloquear el panel</p>
+            <input type="password" id="admin-password-input" class="admin-input" placeholder="Contraseña..." autocomplete="off">
+            <div id="admin-password-error" class="admin-error hidden">Contraseña incorrecta</div>
+            <div class="confirm-warning-actions" style="margin-top: 12px;">
+                <button id="btn-admin-pass-enter" class="btn-action" style="border-color:#00f5d4; color:#00f5d4;">ENTRAR</button>
+                <button id="btn-admin-pass-cancel" class="btn-action btn-back">CANCELAR</button>
+            </div>
+        </div>
+    </div>
+    <div id="admin-panel-modal" class="overlay-screen hidden" style="z-index: 105;">
+        <div class="admin-modal-box admin-panel-box">
+            <div class="admin-modal-header">🛠️ PANEL DE MODO ADMIN</div>
+            <div class="admin-scroll">
+                <div class="admin-section">
+                    <div class="admin-section-title">Niveles, Oleadas y Jefes</div>
+                    <div class="admin-grid">
+                        <button id="btn-admin-tp-l1" class="btn-action btn-admin-item">Ir a Nivel 1 (Oleada 1)</button>
+                        <button id="btn-admin-tp-boss1" class="btn-action btn-admin-item btn-admin-boss">Jefe 1: El Pepe Maestro</button>
+                        <button id="btn-admin-tp-l2" class="btn-action btn-admin-item">Ir a Nivel 2 (Oleada 1)</button>
+                        <button id="btn-admin-tp-boss2" class="btn-action btn-admin-item btn-admin-boss">Jefe 2: Risín Pepín</button>
+                        <button id="btn-admin-tp-shop" class="btn-action btn-admin-item">Ir a Tienda / Pre-Jefe</button>
+                        <button id="btn-admin-skip-wave" class="btn-action btn-admin-item">Saltar Oleada Actual</button>
+                    </div>
+                </div>
+                <div class="admin-section">
+                    <div class="admin-section-title">Supervivencia e Ítems Infinitos</div>
+                    <div class="admin-grid">
+                        <button id="btn-admin-immortal" class="btn-action btn-admin-item btn-admin-toggle">🛡️ MODO INMORTAL: OFF</button>
+                        <button id="btn-admin-infinite" class="btn-action btn-admin-item btn-admin-toggle">♾️ ÍTEMS Y MUNICIÓN INFINITOS: OFF</button>
+                    </div>
+                </div>
+                <div class="admin-section">
+                    <div class="admin-section-title">Control de Armas</div>
+                    <div class="admin-grid">
+                        <button id="btn-admin-weapon-sword" class="btn-action btn-admin-item btn-admin-toggle">⚔️ ESPADA: ON</button>
+                        <button id="btn-admin-weapon-pistol" class="btn-action btn-admin-item btn-admin-toggle">🔫 PISTOLA: OFF</button>
+                        <button id="btn-admin-weapon-rifle" class="btn-action btn-admin-item btn-admin-toggle">🔥 RIFLE: OFF</button>
+                        <button id="btn-admin-unlock-weapons" class="btn-action btn-admin-item" style="border-color:#fbbf24; color:#fbbf24;">🔓 Desbloquear Todas las Armas</button>
+                    </div>
+                </div>
+                <div class="admin-section">
+                    <div class="admin-section-title">Power-Ups (Activables Simultáneamente)</div>
+                    <div class="admin-grid">
+                        <button id="btn-admin-pu-bomba" class="btn-action btn-admin-item btn-admin-toggle">💣 Bomba Grito: OFF</button>
+                        <button id="btn-admin-pu-lola" class="btn-action btn-admin-item btn-admin-toggle">⚡ Lola Blaster: OFF</button>
+                        <button id="btn-admin-pu-belce" class="btn-action btn-admin-item btn-admin-toggle">🟣 Belcesword: OFF</button>
+                        <button id="btn-admin-pu-all" class="btn-action btn-admin-item" style="border-color:#c084fc; color:#c084fc;">✨ ¡Activar los 3 Power-Ups a la vez!</button>
+                    </div>
+                </div>
+            </div>
+            <div class="admin-footer-actions">
+                <button id="btn-admin-close" class="btn-action btn-back">CERRAR PANEL</button>
+                <button id="btn-admin-lock" class="btn-action btn-danger">SALIR DEL MODO ADMIN (BLOQUEAR)</button>
+            </div>
+        </div>
+    </div>
 </div>
+<button id="btn-admin-floating" class="btn-admin-floating hidden" title="Panel Modo Admin">🛠️ ADMIN</button>
 <button id="btn-patch-notes" class="btn-patch-notes">📋 NOTAS DEL PARCHE</button>
-<div id="version-tag">version 1.5.0</div>
+<div id="version-tag">version 1.8.1</div>
 <script src="audio.js"></script>
 <script src="entities.js"></script>
 <script src="player.js"></script>

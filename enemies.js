@@ -7,27 +7,47 @@ class Enemy extends Entity {
     constructor(x, y, archetype = 'CHASER', waveIndex = 1, level = 1) {
         const isChaser = archetype === 'CHASER';
         const isGargoyle = archetype === 'GARGOYLE';
-        const radius = archetype === 'TANK' ? 32 : (isGargoyle ? 15 : (isChaser ? 16 : 18));
+        const isVilla = archetype === 'VILLA';
+        const radius = archetype === 'TANK' ? 32 : (isVilla ? 20 : (isGargoyle ? 15 : (isChaser ? 16 : 18)));
         const hp = archetype === 'TANK'
             ? 4 * (48 + (waveIndex - 1) * 12) // 4x la vida de un melee normal
-            : (isGargoyle ? (36 + (waveIndex - 1) * 10) : ((isChaser ? 48 : 38) + (waveIndex - 1) * 12));
+            : (isVilla
+                ? (46 + (waveIndex - 1) * 12)
+                : (isGargoyle ? (36 + (waveIndex - 1) * 10) : ((isChaser ? 48 : 38) + (waveIndex - 1) * 12)));
         super(x, y, radius, hp);
 
-        this.archetype = archetype; // 'CHASER' | 'SHOOTER' | 'TANK' | 'GARGOYLE'
+        this.archetype = archetype; // 'CHASER' | 'SHOOTER' | 'TANK' | 'GARGOYLE' | 'VILLA'
         this.waveIndex = waveIndex;
         this.level = level;
         this.baseSpeed = isGargoyle
             ? (245 * 1.25) // Gárgola Veloz: 25% más rápida que la velocidad base del jugador
-            : (archetype === 'TANK' ? MathUtils.randRange(58, 70) : (isChaser ? MathUtils.randRange(138, 168) : MathUtils.randRange(95, 115)));
+            : (archetype === 'TANK'
+                ? MathUtils.randRange(58, 70)
+                : (isVilla
+                    ? MathUtils.randRange(102, 122)
+                    : (isChaser ? MathUtils.randRange(138, 168) : MathUtils.randRange(95, 115))));
         this.speed = isGargoyle ? this.baseSpeed : (this.baseSpeed * (level === 2 ? 1.15 : 1.0));
         this.baseContactDamage = isGargoyle ? 0 : (archetype === 'TANK' ? 8 : (isChaser ? 16 : 10)); // Gárgola: 0 daño directo
         this.contactDamage = Math.round(this.baseContactDamage * (level === 2 ? 1.10 : 1.0));
-        this.baseAttackCooldown = isGargoyle ? 0.65 : (isChaser ? 0.8 : MathUtils.randRange(1.7, 2.3));
-        this.attackCooldown = (!isChaser && !isGargoyle && level === 2) ? (this.baseAttackCooldown / 1.07) : this.baseAttackCooldown;
-        this.attackTimer = MathUtils.randRange(0.4, 1.2);
+        this.baseAttackCooldown = isGargoyle ? 0.65 : (isVilla ? MathUtils.randRange(2.3, 3.0) : (isChaser ? 0.8 : MathUtils.randRange(1.7, 2.3)));
+        this.attackCooldown = (!isChaser && !isGargoyle && !isVilla && level === 2) ? (this.baseAttackCooldown / 1.07) : this.baseAttackCooldown;
+        this.attackTimer = isVilla ? MathUtils.randRange(0.9, 1.6) : MathUtils.randRange(0.4, 1.2);
         this.gargoyleHitCooldown = 0;
         this.kbMult = archetype === 'TANK' ? 0.3 : 1; // Tanque: 70% menos retroceso
         this.stepPhase = 0;
+
+        // Parámetros de IA Táctica (Flanqueo, Predicción y Rodeo)
+        this.flankSign = Math.random() < 0.5 ? -1 : 1;
+        this.flankOffset = this.flankSign * MathUtils.randRange(0.42, 0.95);
+        this.strafeSwitchTimer = MathUtils.randRange(2.0, 4.0);
+
+        // Ataque Cargado Venenoso de "Villa" (patirrona.png)
+        this.chargeState = 'IDLE'; // 'IDLE' | 'CHARGING'
+        this.chargeDuration = 0.85;
+        this.chargeTimer = 0;
+        this.chargeAngle = 0;
+        this.patirronaRange = 460;
+        this.patirronaRadius = 28; // +75% a +90%+ mayor hitbox visual y física en v1.7.0
 
         // Salto Sísmico y Onda Expansiva de Ete Sech (Tanque Nivel 2)
         this.jumpState = 'NONE'; // 'NONE' | 'TELEGRAPH' | 'JUMPING'
@@ -62,13 +82,69 @@ class Enemy extends Entity {
 
         const textColor = isCrit ? '#fbbf24' : '#ffffff';
         game.floatingTexts.push(new FloatingText(this.x, this.y - 18, isCrit ? `${amount}!` : `${amount}`, textColor, 15, isCrit));
-        const pColor = this.archetype === 'TANK' ? '#f97316' : (this.archetype === 'GARGOYLE' ? '#818cf8' : (this.archetype === 'CHASER' ? '#f43f5e' : '#a855f7'));
+        const pColor = this.archetype === 'TANK' ? '#f97316' : (this.archetype === 'VILLA' ? '#39ff14' : (this.archetype === 'GARGOYLE' ? '#818cf8' : (this.archetype === 'CHASER' ? '#f43f5e' : '#a855f7')));
         game.spawnParticles(this.x, this.y, isCrit ? 14 : 8, pColor, 160, true);
 
         if (this.hp <= 0) {
             this.dead = true;
             game.onEnemyKilled(this);
         }
+    }
+
+    hasClearLineOfSight(tx, ty, game) {
+        if (!game || !game.pillars) return true;
+        const dx = tx - this.x;
+        const dy = ty - this.y;
+        const lenSq = dx * dx + dy * dy;
+        if (lenSq < 1) return true;
+        for (const p of game.pillars) {
+            if (p.dead) continue;
+            const tProj = MathUtils.clamp(((p.x - this.x) * dx + (p.y - this.y) * dy) / lenSq, 0, 1);
+            const cx = this.x + tProj * dx;
+            const cy = this.y + tProj * dy;
+            if (MathUtils.dist(p.x, p.y, cx, cy) < p.radius + 7) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    computeSteeredAngle(desiredAngle, targetDist, game) {
+        if (!game || !game.pillars) return desiredAngle;
+        let steerX = Math.cos(desiredAngle);
+        let steerY = Math.sin(desiredAngle);
+        const lookAhead = Math.min(targetDist, this.radius + 88);
+
+        for (const p of game.pillars) {
+            if (p.dead) continue;
+            const px = p.x - this.x;
+            const py = p.y - this.y;
+            const d = Math.hypot(px, py);
+            const avoidR = this.radius + p.radius + 26;
+            if (d < lookAhead + p.radius && d > 0.01) {
+                const fwd = px * steerX + py * steerY;
+                if (fwd > -p.radius * 0.4) {
+                    const lat = Math.abs(px * -steerY + py * steerX);
+                    if (lat < avoidR) {
+                        const side = (px * -steerY + py * steerX) >= 0 ? -1 : 1;
+                        const tangAngle = Math.atan2(py, px) + side * (Math.PI * 0.55);
+                        const weight = MathUtils.clamp((avoidR - lat) / avoidR, 0.25, 1.0) * 1.45;
+                        steerX += Math.cos(tangAngle) * weight;
+                        steerY += Math.sin(tangAngle) * weight;
+                    }
+                }
+            }
+        }
+
+        // Suave repulsión de bordes de la arena para evitar atascos en esquinas
+        const b = game.arena;
+        const margin = this.radius + 26;
+        if (this.x < b.x + margin) steerX += 0.65;
+        else if (this.x > b.x + b.w - margin) steerX -= 0.65;
+        if (this.y < b.y + margin) steerY += 0.65;
+        else if (this.y > b.y + b.h - margin) steerY -= 0.65;
+
+        return Math.atan2(steerY, steerX);
     }
 
     update(dt, game) {
@@ -85,7 +161,21 @@ class Enemy extends Entity {
         const dx = player.x - this.x;
         const dy = player.y - this.y;
         const dist = Math.hypot(dx, dy);
-        const angle = Math.atan2(dy, dx);
+        const directAngle = Math.atan2(dy, dx);
+
+        // Predicción ligera del movimiento del jugador para cortar rutas de escape
+        const leadT = MathUtils.clamp(dist / Math.max(140, moveSpeed * 2.2), 0.08, 0.40);
+        const predX = player.x + (player.vx || 0) * leadT;
+        const predY = player.y + (player.vy || 0) * leadT;
+        const predAngle = Math.atan2(predY - this.y, predX - this.x);
+
+        // Variación periódica de flanco para rodear al jugador por distintos ángulos
+        this.strafeSwitchTimer -= dt;
+        if (this.strafeSwitchTimer <= 0) {
+            this.strafeSwitchTimer = MathUtils.randRange(2.0, 4.0);
+            this.flankSign *= -1;
+            this.flankOffset = this.flankSign * MathUtils.randRange(0.42, 0.95);
+        }
 
         this.attackTimer -= dt;
         if (this.gargoyleHitCooldown > 0) this.gargoyleHitCooldown -= dt;
@@ -119,11 +209,14 @@ class Enemy extends Entity {
             }
         }
 
+        const flankWeight = MathUtils.clamp((dist - 90) / 145, 0, 1);
+        const flankMoveAngle = this.computeSteeredAngle(predAngle + this.flankOffset * flankWeight, dist, game);
+
         if (this.archetype === 'GARGOYLE') {
-            // IA Gárgola Veloz: persigue rápidamente (1.25x base jugador), 0 daño directo, duerme en 2 golpes seguidos
+            // IA Gárgola Veloz: persigue rodeando obstáculos rápidamente (1.25x base jugador), 0 daño directo, duerme en 2 golpes
             const gargoyleSpeed = (player.baseSpeed || 245) * 1.25;
-            this.vx = Math.cos(angle) * gargoyleSpeed;
-            this.vy = Math.sin(angle) * gargoyleSpeed;
+            this.vx = Math.cos(flankMoveAngle) * gargoyleSpeed;
+            this.vy = Math.sin(flankMoveAngle) * gargoyleSpeed;
 
             if (this.gargoyleHitCooldown <= 0 && MathUtils.circleCollide(this.x, this.y, this.radius, player.x, player.y, player.radius)) {
                 const isPlayerInvuln = player.isDashing || player.invulnTimer > 0;
@@ -138,7 +231,7 @@ class Enemy extends Entity {
             }
         } else if (this.archetype === 'CHASER' || this.archetype === 'TANK') {
             if (this.archetype === 'TANK') {
-                // Lógica del Salto Sísmico periódico de Ete Sech
+                // Lógica del Salto Sísmico de Ete Sech (regla estricta: SOLO salta si distancia <= 200px)
                 if (this.jumpState === 'TELEGRAPH') {
                     this.vx = 0;
                     this.vy = 0;
@@ -148,11 +241,12 @@ class Enemy extends Entity {
                         this.jumpMaxTime = 0.36;
                         this.jumpTimer = this.jumpMaxTime;
                         this.triggerSquash(0.76, 1.32);
+                        if (soundManager.playEteSech) soundManager.playEteSech();
                     }
                 } else if (this.jumpState === 'JUMPING') {
                     this.jumpTimer -= dt;
-                    this.vx = Math.cos(angle) * moveSpeed * 0.65;
-                    this.vy = Math.sin(angle) * moveSpeed * 0.65;
+                    this.vx = Math.cos(directAngle) * moveSpeed * 0.65;
+                    this.vy = Math.sin(directAngle) * moveSpeed * 0.65;
                     const jumpProg = 1 - Math.max(0, this.jumpTimer / this.jumpMaxTime);
                     this.jumpZ = Math.sin(jumpProg * Math.PI) * 58;
                     if (this.jumpTimer <= 0) {
@@ -173,15 +267,15 @@ class Enemy extends Entity {
                         });
                     }
                 } else {
-                    this.jumpCooldownTimer -= dt;
-                    if (this.jumpCooldownTimer <= 0 && dist < 340) {
+                    if (this.jumpCooldownTimer > 0) this.jumpCooldownTimer -= dt;
+                    if (this.jumpCooldownTimer <= 0 && dist <= 200) {
                         this.jumpState = 'TELEGRAPH';
                         this.jumpTimer = 0.55;
                         this.vx = 0;
                         this.vy = 0;
                         this.triggerSquash(1.28, 0.72);
                     } else {
-                        // Pasos pesados del Coloso
+                        // Pasos pesados del Coloso cortando ruta hacia el jugador y esquivando pilares
                         const ph = Math.floor(this.animTime * 2.6);
                         if (ph !== this.stepPhase) {
                             this.stepPhase = ph;
@@ -191,14 +285,15 @@ class Enemy extends Entity {
                                 game.spawnParticles(this.x, this.y + this.radius * 0.8, 4, '#6b7280', 70, false);
                             }
                         }
-                        this.vx = Math.cos(angle) * moveSpeed;
-                        this.vy = Math.sin(angle) * moveSpeed;
+                        const tankAngle = this.computeSteeredAngle(predAngle + this.flankOffset * 0.35 * flankWeight, dist, game);
+                        this.vx = Math.cos(tankAngle) * moveSpeed;
+                        this.vy = Math.sin(tankAngle) * moveSpeed;
                     }
                 }
             } else {
-                // IA Perseguidor: Avanza agresivamente cuerpo a cuerpo
-                this.vx = Math.cos(angle) * moveSpeed;
-                this.vy = Math.sin(angle) * moveSpeed;
+                // IA Perseguidor con Rodeo (Flanking), predicción y evasión de pilares
+                this.vx = Math.cos(flankMoveAngle) * moveSpeed;
+                this.vy = Math.sin(flankMoveAngle) * moveSpeed;
             }
 
             if (this.jumpState !== 'JUMPING' && MathUtils.circleCollide(this.x, this.y, this.radius, player.x, player.y, player.radius)) {
@@ -207,46 +302,128 @@ class Enemy extends Entity {
                     this.applyKnockback(player.x, player.y, 220);
                 }
             }
-        } else {
-            // IA Tirador (Jokers): Mantiene distancia óptima y dispara proyectiles
-            const preferredDist = 260;
-            if (dist > preferredDist + 45) {
-                this.vx = Math.cos(angle) * moveSpeed;
-                this.vy = Math.sin(angle) * moveSpeed;
-            } else if (dist < preferredDist - 55) {
-                this.vx = -Math.cos(angle) * (moveSpeed * 0.85);
-                this.vy = -Math.sin(angle) * (moveSpeed * 0.85);
-            } else {
-                // Movimiento orbital lateral
-                this.vx = Math.cos(angle + Math.PI * 0.5) * (moveSpeed * 0.6);
-                this.vy = Math.sin(angle + Math.PI * 0.5) * (moveSpeed * 0.6);
-            }
+        } else if (this.archetype === 'VILLA') {
+            // IA de "Villa" (Tirador táctico con Ataque Cargado de Patirrona Venenosa)
+            const hasLOS = this.hasClearLineOfSight(player.x, player.y, game);
 
-            if (this.attackTimer <= 0 && dist < 560) {
+            if (this.chargeState === 'CHARGING') {
+                this.vx = 0;
+                this.vy = 0;
+                this.chargeTimer -= dt;
+                // Ajusta puntería ligeramente en la primera mitad de la carga y luego fija el ángulo
+                if (this.chargeTimer > 0.45) {
+                    this.chargeAngle = Math.atan2(predY - this.y, predX - this.x);
+                }
+                if (this.chargeTimer <= 0) {
+                    this.chargeState = 'IDLE';
+                    this.attackTimer = this.baseAttackCooldown;
+                    this.triggerSquash(0.74, 1.32);
+
+                    const spawnOffset = this.radius + 8;
+                    const sx = this.x + Math.cos(this.chargeAngle) * spawnOffset;
+                    const sy = this.y + Math.sin(this.chargeAngle) * spawnOffset;
+                    const projSpeed = 651; // +55% más rápida que en v1.6.0 (420 * 1.55)
+                    const directDmg = Math.round(player.maxHp * 0.25);
+
+                    game.projectiles.push(new Projectile(
+                        sx, sy,
+                        Math.cos(this.chargeAngle) * projSpeed,
+                        Math.sin(this.chargeAngle) * projSpeed,
+                        this.patirronaRadius,
+                        directDmg,
+                        '#39ff14',
+                        true,
+                        null,
+                        {
+                            kind: 'PATIRRONA',
+                            maxDistance: this.patirronaRange,
+                            pctMaxHpDamage: 0.25,
+                            poisonDuration: 4.0
+                        }
+                    ));
+                    soundManager.playGunshot();
+                    game.spawnParticles(sx, sy, 10, '#39ff14', 120, true);
+                }
+            } else {
+                const preferredDist = 310;
+                let desiredA;
+                let spd = moveSpeed;
+                if (!hasLOS) {
+                    // Busca ángulo limpio rodeando pilares
+                    desiredA = directAngle + this.flankSign * (Math.PI * 0.48);
+                } else if (dist > preferredDist + 45) {
+                    desiredA = predAngle + this.flankOffset * 0.4;
+                } else if (dist < preferredDist - 65) {
+                    desiredA = directAngle + Math.PI + this.flankSign * 0.45;
+                    spd = moveSpeed * 0.9;
+                } else {
+                    desiredA = directAngle + this.flankSign * Math.PI * 0.5;
+                    spd = moveSpeed * 0.65;
+                }
+                const steered = this.computeSteeredAngle(desiredA, dist, game);
+                this.vx = Math.cos(steered) * spd;
+                this.vy = Math.sin(steered) * spd;
+
+                if (this.attackTimer <= 0 && dist <= this.patirronaRange - 15 && hasLOS) {
+                    this.chargeState = 'CHARGING';
+                    this.chargeTimer = this.chargeDuration;
+                    this.chargeAngle = Math.atan2(predY - this.y, predX - this.x);
+                    this.vx = 0;
+                    this.vy = 0;
+                    this.triggerSquash(1.22, 0.78);
+                }
+            }
+        } else {
+            // IA Tirador (Jokers): Mantiene distancia táctica, busca ángulo sin pilares y dispara
+            const hasLOS = this.hasClearLineOfSight(player.x, player.y, game);
+            const preferredDist = 260;
+            let desiredA;
+            let spd = moveSpeed;
+            if (!hasLOS) {
+                desiredA = directAngle + this.flankSign * (Math.PI * 0.48);
+            } else if (dist > preferredDist + 45) {
+                desiredA = predAngle + this.flankOffset * 0.35;
+            } else if (dist < preferredDist - 55) {
+                desiredA = directAngle + Math.PI + this.flankSign * 0.42;
+                spd = moveSpeed * 0.88;
+            } else {
+                desiredA = directAngle + this.flankSign * Math.PI * 0.5;
+                spd = moveSpeed * 0.62;
+            }
+            const steered = this.computeSteeredAngle(desiredA, dist, game);
+            this.vx = Math.cos(steered) * spd;
+            this.vy = Math.sin(steered) * spd;
+
+            if (this.attackTimer <= 0 && dist < 560 && hasLOS) {
                 this.attackTimer = isL2 ? (this.baseAttackCooldown / 1.07) : this.baseAttackCooldown;
                 this.triggerSquash(0.75, 1.3);
                 const projSpeed = 230 * (isL2 ? 1.07 : 1.0);
                 const projDamage = Math.round(14 * dmgMult);
+                const aimA = Math.atan2(predY - this.y, predX - this.x);
                 game.projectiles.push(new Projectile(
-                    this.x + Math.cos(angle) * (this.radius + 6),
-                    this.y + Math.sin(angle) * (this.radius + 6),
-                    Math.cos(angle) * projSpeed,
-                    Math.sin(angle) * projSpeed,
+                    this.x + Math.cos(aimA) * (this.radius + 6),
+                    this.y + Math.sin(aimA) * (this.radius + 6),
+                    Math.cos(aimA) * projSpeed,
+                    Math.sin(aimA) * projSpeed,
                     7, projDamage, '#c084fc', true
                 ));
             }
         }
 
-        // Separación suave entre enemigos para evitar que se apilen en un mismo punto
-        for (const other of game.enemies) {
-            if (other === this || other.dead) continue;
-            const odx = this.x - other.x;
-            const ody = this.y - other.y;
-            const odist = Math.hypot(odx, ody);
-            const minSep = this.radius + other.radius + 4;
-            if (odist < minSep && odist > 0.01) {
-                this.vx += (odx / odist) * 90;
-                this.vy += (ody / odist) * 90;
+        // Separación táctica entre enemigos para rodear al jugador sin marchar en fila india
+        if (!(this.archetype === 'VILLA' && this.chargeState === 'CHARGING') &&
+            !(this.archetype === 'TANK' && this.jumpState === 'TELEGRAPH')) {
+            for (const other of game.enemies) {
+                if (other === this || other.dead) continue;
+                const odx = this.x - other.x;
+                const ody = this.y - other.y;
+                const odist = Math.hypot(odx, ody);
+                const minSep = this.radius + other.radius + 26;
+                if (odist < minSep && odist > 0.01) {
+                    const push = ((minSep - odist) / minSep) * 145;
+                    this.vx += (odx / odist) * push;
+                    this.vy += (ody / odist) * push;
+                }
             }
         }
 
@@ -618,9 +795,148 @@ class Enemy extends Entity {
         }
     }
 
+    // ==========================================
+    // VILLA (Nivel 2): Skin villa.png + Telegraph de Patirrona Venenosa
+    // ==========================================
+    drawVilla(ctx, player) {
+        const t = this.animTime;
+        const isCharging = this.chargeState === 'CHARGING';
+        const isMoving = Math.hypot(this.vx, this.vy) > 10 && !isCharging;
+        const walkBob = isMoving ? Math.sin(t * 12) * 3 : Math.sin(t * 4) * 1.2;
+        const flash = this.hitFlash > 0;
+        const facingLeft = player.x < this.x;
+
+        // 1. Indicador luminoso de trayectoria y distancia exacta al cargar ataque
+        if (isCharging) {
+            const chargeProg = 1 - MathUtils.clamp(this.chargeTimer / (this.chargeDuration || 0.85), 0, 1);
+            const pulse = 0.45 + Math.sin(t * 34) * 0.25;
+            const laneHalfW = this.patirronaRadius + 2;
+            const range = this.patirronaRange || 460;
+            const startOff = this.radius + 6;
+
+            ctx.save();
+            ctx.translate(this.x, this.y);
+            ctx.rotate(this.chargeAngle);
+
+            // Zona de peligro en el suelo
+            ctx.fillStyle = `rgba(57, 255, 20, ${0.12 + chargeProg * 0.20})`;
+            ctx.fillRect(startOff, -laneHalfW, range, laneHalfW * 2);
+
+            // Barra de relleno progresivo indicando el instante exacto del disparo
+            ctx.fillStyle = `rgba(57, 255, 20, ${0.22 * pulse})`;
+            ctx.fillRect(startOff, -laneHalfW * 0.65, range * chargeProg, laneHalfW * 1.3);
+
+            // Bordes exteriores y línea central discontinua de trayectoria
+            ctx.strokeStyle = `rgba(57, 255, 20, ${0.65 + chargeProg * 0.35})`;
+            ctx.lineWidth = 2;
+            ctx.strokeRect(startOff, -laneHalfW, range, laneHalfW * 2);
+
+            ctx.setLineDash([10, 7]);
+            ctx.beginPath();
+            ctx.moveTo(startOff, 0);
+            ctx.lineTo(startOff + range, 0);
+            ctx.stroke();
+            ctx.setLineDash([]);
+
+            // Retícula de distancia máxima donde terminará el proyectil
+            ctx.beginPath();
+            ctx.arc(startOff + range, 0, laneHalfW + 3, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        ctx.save();
+        ctx.translate(this.x, this.y);
+        ctx.scale(this.scaleX, this.scaleY);
+
+        // Sombra
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.48)';
+        ctx.beginPath();
+        ctx.ellipse(0, 20, this.radius * 1.3, this.radius * 0.55, 0, 0, Math.PI * 2);
+        ctx.fill();
+
+        // Aura verde tóxica/oscura
+        const auraR = 26 + Math.sin(t * (isCharging ? 18 : 7)) * 2.5;
+        const auraCol = isCharging ? '#39ff14' : '#16a34a';
+        ctx.save();
+        ctx.strokeStyle = auraCol;
+        ctx.shadowColor = '#39ff14';
+        ctx.shadowBlur = isCharging ? 20 : 12;
+        ctx.lineWidth = isCharging ? 3.5 : 2.2;
+        ctx.beginPath();
+        ctx.arc(0, -walkBob, auraR, 0, Math.PI * 2);
+        ctx.stroke();
+        ctx.restore();
+
+        // Cuerpo de Villa (villa.png)
+        const vSize = 58;
+        const vRad = vSize * 0.5;
+        ctx.save();
+        ctx.translate(0, -walkBob);
+        if (typeof villaImg !== 'undefined' && villaImg.complete && villaImg.naturalWidth > 0) {
+            ctx.fillStyle = '#052e16';
+            ctx.beginPath();
+            ctx.arc(0, 0, vRad, 0, Math.PI * 2);
+            ctx.fill();
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.arc(0, 0, vRad, 0, Math.PI * 2);
+            ctx.clip();
+            if (facingLeft) ctx.scale(-1, 1);
+            ctx.drawImage(villaImg, -vRad, -vRad, vSize, vSize);
+            if (flash) {
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.85)';
+                ctx.fillRect(-vRad, -vRad, vSize, vSize);
+            }
+            ctx.restore();
+
+            ctx.strokeStyle = flash ? '#ffffff' : auraCol;
+            ctx.lineWidth = isCharging ? 3.5 : 2.5;
+            ctx.beginPath();
+            ctx.arc(0, 0, vRad, 0, Math.PI * 2);
+            ctx.stroke();
+        } else {
+            // Fallback procedural verde tóxico
+            ctx.fillStyle = flash ? '#ffffff' : '#14532d';
+            ctx.strokeStyle = auraCol;
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+        }
+        ctx.restore();
+        ctx.restore();
+
+        // Indicador "CARGANDO..." o barra de vida
+        if (isCharging) {
+            ctx.save();
+            ctx.font = '900 10px "Courier New", monospace';
+            ctx.textAlign = 'center';
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 2.5;
+            ctx.strokeText('¡PATIRRONA!', this.x, this.y - 42);
+            ctx.fillStyle = '#39ff14';
+            ctx.fillText('¡PATIRRONA!', this.x, this.y - 42);
+            ctx.restore();
+        }
+
+        if (this.hp < this.maxHp) {
+            const bw = 36;
+            const bh = 4.5;
+            const barY = this.y - 38;
+            ctx.fillStyle = '#0f172a';
+            ctx.fillRect(this.x - bw / 2, barY, bw, bh);
+            ctx.fillStyle = '#39ff14';
+            ctx.fillRect(this.x - bw / 2, barY, bw * MathUtils.clamp(this.hp / this.maxHp, 0, 1), bh);
+        }
+    }
+
     draw(ctx, player) {
         if (this.archetype === 'TANK') { this.drawTank(ctx, player); return; }
         if (this.archetype === 'GARGOYLE') { this.drawGargoyle(ctx, player); return; }
+        if (this.archetype === 'VILLA') { this.drawVilla(ctx, player); return; }
         ctx.save();
         ctx.translate(this.x, this.y);
         ctx.scale(this.scaleX, this.scaleY);

@@ -3,6 +3,18 @@
  * SISTEMA DE SONIDO SINTETIZADO (WEB AUDIO API - CERO ARCHIVOS EXTERNOS)
  * ============================================================================
  */
+const CUSTOM_AUDIO_CANDIDATES = {
+    elPepe: ['El pepe.mp3', 'el pepe.mp3', 'el_pepe.mp3', 'El_pepe.mp3'],
+    pepeMuerte: ['Pepe_Muerte.mp3', 'pepe_muerte.mp3'],
+    eteSech: ['ete sech.mp3', 'ete_sech.mp3', 'Ete_sech.mp3'],
+    bombaGrito: ['Bomba_Grito.mp3', 'bomba_grito.mp3'],
+    risaPepin: ['Risa_pepin.mp3', 'risa_pepin.mp3'],
+    risinMuerte: ['Risin_Muerte.mp3', 'risin_muerte.mp3'],
+    lolaBlaster: ['Lola_Blaster.mp3', 'lola_blaster.mp3'],
+    belcesword: ['Belcesword.mp3', 'belcesword.mp3'],
+    muerteOxxo: ['Muerte oxxo.mp3', 'muerte oxxo.mp3', 'Muerte_oxxo.mp3', 'muerte_oxxo.mp3']
+};
+
 class SoundManager {
     constructor() {
         this.ctx = null;
@@ -12,6 +24,10 @@ class SoundManager {
             savedVol = typeof localStorage !== 'undefined' ? localStorage.getItem('pepe_master_volume') : null;
         } catch(e) {}
         this.masterVolume = savedVol !== null ? Math.max(0, Math.min(1, parseFloat(savedVol))) : 0.8;
+        this.customAudioResolvedSrc = {};
+        this.customAudioFailed = {};
+        this.customLastPlayed = {};
+        this.activeCustomAudios = [];
     }
 
     init() {
@@ -26,6 +42,14 @@ class SoundManager {
     setVolume(vol) {
         this.masterVolume = Math.max(0, Math.min(1, vol));
         if (this.ctx && this.masterGain) this.masterGain.gain.setValueAtTime(this.masterVolume, this.ctx.currentTime);
+        for (let i = this.activeCustomAudios.length - 1; i >= 0; i--) {
+            const entry = this.activeCustomAudios[i];
+            if (!entry || !entry.audio || entry.audio.ended) {
+                this.activeCustomAudios.splice(i, 1);
+                continue;
+            }
+            entry.audio.volume = Math.max(0, Math.min(1, this.masterVolume * (entry.volumeScale || 1)));
+        }
         try {
             if (typeof localStorage !== 'undefined') localStorage.setItem('pepe_master_volume', this.masterVolume.toString());
         } catch(e) {}
@@ -177,15 +201,167 @@ class SoundManager {
         } catch(e) {}
     }
 
+    stopCustomSound(key = null) {
+        for (let i = this.activeCustomAudios.length - 1; i >= 0; i--) {
+            const entry = this.activeCustomAudios[i];
+            if (!entry || !entry.audio) {
+                this.activeCustomAudios.splice(i, 1);
+                continue;
+            }
+            if (!key || entry.key === key) {
+                try {
+                    entry.audio.pause();
+                    entry.audio.currentTime = 0;
+                } catch(e) {}
+                this.activeCustomAudios.splice(i, 1);
+            }
+        }
+    }
+
+    playCustomSound(key, options = {}) {
+        const candidates = CUSTOM_AUDIO_CANDIDATES[key];
+        const fallback = typeof options.onFallback === 'function' ? options.onFallback : null;
+        const cooldownMs = options.cooldownMs !== undefined ? options.cooldownMs : 70;
+        const overlap = options.overlap !== false;
+        const volumeScale = options.volumeScale !== undefined ? options.volumeScale : 1;
+
+        const now = Date.now();
+        if (cooldownMs > 0 && now - (this.customLastPlayed[key] || 0) < cooldownMs) {
+            return false;
+        }
+        this.customLastPlayed[key] = now;
+
+        if (!candidates || candidates.length === 0 || typeof Audio === 'undefined' || this.customAudioFailed[key]) {
+            if (fallback) fallback();
+            return false;
+        }
+
+        if (!overlap) {
+            this.stopCustomSound(key);
+        } else if (this.activeCustomAudios.length > 24) {
+            this.activeCustomAudios = this.activeCustomAudios.filter(e => e.audio && !e.audio.ended);
+        }
+
+        const resolvedSrc = this.customAudioResolvedSrc[key];
+        const tryList = resolvedSrc ? [resolvedSrc] : candidates;
+
+        const attemptPlay = (idx) => {
+            if (idx >= tryList.length) {
+                if (!resolvedSrc) this.customAudioFailed[key] = true;
+                if (fallback) fallback();
+                return;
+            }
+            const rawSrc = tryList[idx];
+            const encodedSrc = encodeURI(rawSrc);
+            let audio;
+            try {
+                audio = new Audio(encodedSrc);
+            } catch(e) {
+                attemptPlay(idx + 1);
+                return;
+            }
+
+            audio.volume = Math.max(0, Math.min(1, this.masterVolume * volumeScale));
+            const entry = { key, audio, volumeScale };
+            this.activeCustomAudios.push(entry);
+
+            let settled = false;
+            const cleanupEntry = () => {
+                const pos = this.activeCustomAudios.indexOf(entry);
+                if (pos !== -1) this.activeCustomAudios.splice(pos, 1);
+            };
+            const handleFailure = () => {
+                if (settled) return;
+                settled = true;
+                cleanupEntry();
+                attemptPlay(idx + 1);
+            };
+
+            if (typeof audio.addEventListener === 'function') {
+                audio.addEventListener('ended', cleanupEntry, { once: true });
+                audio.addEventListener('error', handleFailure, { once: true });
+            } else {
+                audio.onended = cleanupEntry;
+                audio.onerror = handleFailure;
+            }
+
+            try {
+                const playPromise = audio.play();
+                if (playPromise && typeof playPromise.then === 'function') {
+                    playPromise.then(() => {
+                        if (!settled) {
+                            settled = true;
+                            this.customAudioResolvedSrc[key] = rawSrc;
+                        }
+                    }).catch((err) => {
+                        if (err && err.name === 'NotAllowedError') {
+                            cleanupEntry();
+                            if (fallback) fallback();
+                            return;
+                        }
+                        handleFailure();
+                    });
+                } else {
+                    this.customAudioResolvedSrc[key] = rawSrc;
+                }
+            } catch(e) {
+                handleFailure();
+            }
+        };
+
+        attemptPlay(0);
+        return true;
+    }
+
+    // Ataques y muerte de El Pepe Maestro
+    playElPepe(options = {}) {
+        return this.playCustomSound('elPepe', {
+            overlap: options.overlap !== false,
+            cooldownMs: options.cooldownMs !== undefined ? options.cooldownMs : 120,
+            onFallback: () => this.playTone('sawtooth', [[80, 35]], 0.45, 0.38, 0.45, 0.46, true)
+        });
+    }
+
+    playPepeMuerte() {
+        this.stopCustomSound('elPepe');
+        return this.playCustomSound('pepeMuerte', {
+            overlap: false,
+            cooldownMs: 250,
+            onFallback: () => this.playTone('sawtooth', [[180, 32], [95, 22]], 0.55, 0.45, 0.56, 0.58, true)
+        });
+    }
+
+    // Salto sísmico de Ete Sech
+    playEteSech() {
+        return this.playCustomSound('eteSech', {
+            overlap: true,
+            cooldownMs: 180,
+            onFallback: () => this.playBossRoar()
+        });
+    }
+
     // Ataques de El Pepe Maestro: Rugido/alarma grave al embestir
     playBossRoar() { this.playTone('sawtooth', [[80, 35]], 0.45, 0.38, 0.45, 0.46, true); }
 
     // Ataques de El Pepe Maestro: Estruendo sísmico al caer del salto
     playBossSlam() { this.playTone('triangle', [[65, 18]], 0.55, 0.5, 0.55, 0.56); }
 
-    // Risín Pepín: Carcajada malévola sintetizada
+    // Risín Pepín: Carcajada malévola (.mp3 con fallback sintetizado) y muerte
     playRisinLaugh() {
-        this.playTone('sawtooth', [[320, 580], [480, 240]], 0.28, 0.32, 0.30, 0.32);
+        return this.playCustomSound('risaPepin', {
+            overlap: true,
+            cooldownMs: 160,
+            onFallback: () => this.playTone('sawtooth', [[320, 580], [480, 240]], 0.28, 0.32, 0.30, 0.32)
+        });
+    }
+
+    playRisinMuerte() {
+        this.stopCustomSound('risaPepin');
+        return this.playCustomSound('risinMuerte', {
+            overlap: false,
+            cooldownMs: 250,
+            onFallback: () => this.playTone('sawtooth', [[420, 90], [260, 45]], 0.60, 0.45, 0.62, 0.64, true)
+        });
     }
 
     // Risín Pepín: Disparo del Láser de Risa Descontrolada
@@ -235,6 +411,48 @@ class SoundManager {
             this.playTone('triangle', [[440, 180], [660, 270]], 0.38, 0.32, 0.40, 0.42);
         }
     }
+
+    // Tic de veneno (Patirrona) y salpicadura de charco debilitador (Risín Pepín)
+    playPoisonTick() {
+        this.playTone('sawtooth', [[260, 140]], 0.12, 0.16, 0.13, 0.14);
+    }
+
+    playPuddleSplash() {
+        this.playTone('triangle', [[380, 110], [220, 90]], 0.24, 0.34, 0.26, 0.27);
+    }
+
+    // Explosión de Bomba Grito, disparo cargado de Lola Blaster, 3er golpe Belcesword y muerte del jugador
+    playBombExplosion() {
+        return this.playCustomSound('bombaGrito', {
+            overlap: true,
+            cooldownMs: 70,
+            onFallback: () => this.playTone('sawtooth', [[160, 38], [240, 52]], 0.32, 0.36, 0.34, 0.36)
+        });
+    }
+
+    playLolaBlasterCharged() {
+        return this.playCustomSound('lolaBlaster', {
+            overlap: true,
+            cooldownMs: 80,
+            onFallback: () => this.playTone('sawtooth', [[320, 980], [640, 180]], 0.22, 0.32, 0.24, 0.25)
+        });
+    }
+
+    playBelcesword() {
+        return this.playCustomSound('belcesword', {
+            overlap: true,
+            cooldownMs: 80,
+            onFallback: () => this.playTone('sawtooth', [[460, 140], [720, 220]], 0.20, 0.30, 0.22, 0.23)
+        });
+    }
+
+    playMuerteOxxo() {
+        return this.playCustomSound('muerteOxxo', {
+            overlap: false,
+            cooldownMs: 200,
+            onFallback: () => this.playTone('sawtooth', [[220, 55], [140, 42]], 0.45, 0.35, 0.46, 0.48)
+        });
+    }
 }
 
 const soundManager = new SoundManager();
@@ -252,6 +470,22 @@ const etesechImg = new Image();
 etesechImg.src = 'etesech.png';
 const risinImg = new Image();
 risinImg.src = 'risinpepin.png';
+const villaImg = new Image();
+villaImg.onerror = () => {
+    if (!villaImg._retried) {
+        villaImg._retried = true;
+        villaImg.src = 'Villa.png';
+    }
+};
+villaImg.src = 'villa.png';
+const patirronaImg = new Image();
+patirronaImg.onerror = () => {
+    if (!patirronaImg._retried) {
+        patirronaImg._retried = true;
+        patirronaImg.src = 'Patirrona.png';
+    }
+};
+patirronaImg.src = 'patirrona.png';
 
 // Pociones reales (v1.4.0)
 const potionHealImg = new Image();
@@ -268,3 +502,21 @@ potionFuryImg.onerror = () => {
         potionFuryImg.src = 'Smirnoff.png';
     }
 };
+
+// Helper reutilizable con fallback de mayúsculas/minúsculas para nuevos Power-Ups (v1.7.0)
+function loadImageWithFallback(primarySrc, fallbackSrc) {
+    const img = new Image();
+    img.onerror = () => {
+        if (!img._retried && fallbackSrc) {
+            img._retried = true;
+            img.src = fallbackSrc;
+        }
+    };
+    img.src = primarySrc;
+    return img;
+}
+
+const bombaGritoImg = loadImageWithFallback('Bomba_grito.png', 'bomba_grito.png');
+const lolaBlasterImg = loadImageWithFallback('Lola_Blaster.png', 'lola_blaster.png');
+const lolaBlaster2Img = loadImageWithFallback('Lola_Blaster2.png', 'lola_blaster2.png');
+const belceswordImg = loadImageWithFallback('Belcesword.png', 'belcesword.png');

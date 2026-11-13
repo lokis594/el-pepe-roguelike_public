@@ -6,8 +6,8 @@
 class Boss extends Entity {
     constructor(x, y) {
         const isL2 = arguments[2] === 2;
-        const pepeBaseHp = 950;
-        const maxHp = isL2 ? Math.round(pepeBaseHp * 1.5) : pepeBaseHp; // Risín Pepín: 1.5x la vida de El Pepe
+        const pepeBaseHp = Math.round(950 * 1.35); // Buff +35% HP en v1.6.0 (1283 HP)
+        const maxHp = isL2 ? Math.round(pepeBaseHp * 1.5) : pepeBaseHp; // Risín Pepín: 1.5x la vida de El Pepe (~1925 HP)
         const safeX = Number.isFinite(x) ? x : 550;
         const safeY = Number.isFinite(y) ? y : 240;
         super(safeX, safeY, 42 * (isL2 ? 1.28 : 1), maxHp);
@@ -94,7 +94,7 @@ class Boss extends Entity {
 
     transitionToNextAttack(game) {
         const patterns = this.isRisin
-            ? ['WORD_BARRAGE', 'LAUGH_LASER_TELEGRAPH', 'JUMP_ASCEND', 'CHARGE_TELEGRAPH']
+            ? ['WORD_BARRAGE', 'LAUGH_LASER_TELEGRAPH', 'PUDDLE_TOSS', 'JUMP_ASCEND', 'CHARGE_TELEGRAPH']
             : ['CHARGE_TELEGRAPH', 'SPIRAL_CAST', 'JUMP_ASCEND'];
         const chosen = patterns[this.attackIndex % patterns.length];
         this.attackIndex++;
@@ -106,6 +106,16 @@ class Boss extends Entity {
             this.stateTimer = this.enraged ? 3.2 : 2.8;
             this.spiralShotTimer = 0.1;
             this.wordBurstCount = 0;
+            if (soundManager.playRisinLaugh) soundManager.playRisinLaugh();
+        } else if (chosen === 'PUDDLE_TOSS') {
+            this.state = 'PUDDLE_TOSS';
+            this.stateTimer = 0.55;
+            this.vx = 0;
+            this.vy = 0;
+            this.puddleThrown = false;
+            this.puddleTargetX = game.player ? game.player.x : this.x;
+            this.puddleTargetY = game.player ? game.player.y : this.y;
+            this.triggerSquash(1.25, 0.8);
             if (soundManager.playRisinLaugh) soundManager.playRisinLaugh();
         } else if (chosen === 'LAUGH_LASER_TELEGRAPH') {
             this.state = 'LAUGH_LASER_TELEGRAPH';
@@ -121,16 +131,19 @@ class Boss extends Entity {
             this.vy = 0;
             this.chargeAngle = Math.atan2(game.player.y - this.y, game.player.x - this.x);
             soundManager.playBossRoar();
+            if (!this.isRisin && soundManager.playElPepe) soundManager.playElPepe();
         } else if (chosen === 'SPIRAL_CAST') {
             this.state = 'SPIRAL_CAST';
             this.stateTimer = this.enraged ? 3.2 : 2.8;
             this.spiralShotTimer = 0;
+            if (!this.isRisin && soundManager.playElPepe) soundManager.playElPepe();
         } else if (chosen === 'JUMP_ASCEND') {
             this.state = 'JUMP_ASCEND';
             this.stateTimer = 0.35 / speedMult;
             this.vx = 0;
             this.vy = 0;
             this.triggerSquash(0.65, 1.45);
+            if (!this.isRisin && soundManager.playElPepe) soundManager.playElPepe();
         }
     }
 
@@ -444,6 +457,47 @@ class Boss extends Entity {
 
                     this.state = 'IDLE';
                     this.stateTimer = this.enraged ? 0.85 : 1.35;
+                }
+                break;
+            }
+
+            case 'PUDDLE_TOSS': {
+                this.vx = 0;
+                this.vy = 0;
+                if (!this.puddleThrown && this.stateTimer <= 0.25) {
+                    this.puddleThrown = true;
+                    const tx = Number.isFinite(this.puddleTargetX) ? this.puddleTargetX : (player ? player.x : this.x);
+                    const ty = Number.isFinite(this.puddleTargetY) ? this.puddleTargetY : (player ? player.y : this.y);
+                    const dx = tx - this.x;
+                    const dy = ty - this.y;
+                    const dist = Math.max(40, Math.hypot(dx, dy));
+                    const flightTime = 0.55;
+                    const vx = (dx / dist) * (dist / flightTime);
+                    const vy = (dy / dist) * (dist / flightTime);
+                    game.projectiles.push(new Projectile(
+                        this.x,
+                        this.y,
+                        vx,
+                        vy,
+                        12,
+                        0,
+                        '#39ff14',
+                        true,
+                        null,
+                        {
+                            kind: 'PUDDLE_FLASK',
+                            targetX: tx,
+                            targetY: ty,
+                            maxDistance: dist,
+                            puddleRadius: 90,
+                            puddleDuration: 4.0
+                        }
+                    ));
+                    this.triggerSquash(1.3, 0.72);
+                }
+                if (this.stateTimer <= 0) {
+                    this.state = 'IDLE';
+                    this.stateTimer = this.enraged ? 0.85 : 1.25;
                 }
                 break;
             }

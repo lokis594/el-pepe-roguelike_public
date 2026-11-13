@@ -9,7 +9,8 @@ class Player extends Entity {
         this.baseSpeed = 245;
         this.aimAngle = 0;
 
-        // Inventario de armas (Espada y Pistola)
+        // Inventario de armas (Espada, Pistola y Rifle)
+        this.hasSword = true;
         this.hasGun = false;
         this.currentWeapon = 'SWORD'; // 'SWORD' | 'GUN' | 'RIFLE'
         this.gunCooldown = 0.20 * 1.07; // Cadencia reducida un 7%
@@ -79,6 +80,83 @@ class Player extends Entity {
         this.gargoyleHitDecayTimer = 0;
         this.sleepTimer = 0;
         this.sleepImmunityTimer = 0;
+
+        // Estado de Veneno (Patirrona de Villa) y Debilitamiento (Charco de Risín Pepín)
+        this.poisonTimer = 0;
+        this.poisonTickTimer = 0;
+        this.poisonBubbleTimer = 0;
+        this.weaknessTimer = 0;
+        this.weaknessTextCooldown = 0;
+
+        // Power-Ups Especiales Post-El Pepe: flags independientes para soportar los 3 activos a la vez
+        this.powerUps = { bombaGrito: false, lolaBlaster: false, belcesword: false };
+        this._lastSinglePowerup = null;
+        this.isImmortal = false;
+        this.infiniteItems = false;
+        this.belceSwingCount = 0;
+        this.activeSwingBelceThird = false;
+        this.lolaCharging = false;
+        this.lolaChargeTimer = 0;
+        this.lolaChargeThreshold = 1.5;
+        this.lolaFireAnimTimer = 0;
+        this.lolaMouthDuration = 0.95;
+        this.lolaMouthTimer = 0;
+        this.lolaWaitRelease = false;
+        this.lolaParticleTimer = 0;
+        this.wasAttackHeld = false;
+    }
+
+    hasPowerUp(key) {
+        if (!this.powerUps) return false;
+        if (key === 'BOMBA_GRITO') return !!this.powerUps.bombaGrito;
+        if (key === 'LOLA_BLASTER') return !!this.powerUps.lolaBlaster;
+        if (key === 'BELCESWORD') return !!this.powerUps.belcesword;
+        return false;
+    }
+
+    setPowerUpEnabled(key, enabled) {
+        if (!this.powerUps) this.powerUps = { bombaGrito: false, lolaBlaster: false, belcesword: false };
+        const val = !!enabled;
+        if (key === 'BOMBA_GRITO') this.powerUps.bombaGrito = val;
+        else if (key === 'LOLA_BLASTER') this.powerUps.lolaBlaster = val;
+        else if (key === 'BELCESWORD') this.powerUps.belcesword = val;
+        if (val) this._lastSinglePowerup = key;
+        if (key === 'LOLA_BLASTER' && !val) {
+            this.lolaCharging = false;
+            this.lolaChargeTimer = 0;
+            this.lolaWaitRelease = false;
+            this.lolaFireAnimTimer = 0;
+            this.lolaMouthTimer = 0;
+        }
+    }
+
+    getActivePowerUps() {
+        const list = [];
+        if (this.hasPowerUp('BOMBA_GRITO')) list.push('BOMBA_GRITO');
+        if (this.hasPowerUp('LOLA_BLASTER')) list.push('LOLA_BLASTER');
+        if (this.hasPowerUp('BELCESWORD')) list.push('BELCESWORD');
+        return list;
+    }
+
+    get powerup() {
+        const list = this.getActivePowerUps();
+        if (list.length === 0) return null;
+        if (list.length === 1) return list[0];
+        return this._lastSinglePowerup && this.hasPowerUp(this._lastSinglePowerup) ? this._lastSinglePowerup : list[0];
+    }
+
+    set powerup(val) {
+        if (!val) {
+            this.powerUps = { bombaGrito: false, lolaBlaster: false, belcesword: false };
+            this._lastSinglePowerup = null;
+            return;
+        }
+        this._lastSinglePowerup = val;
+        this.powerUps = {
+            bombaGrito: val === 'BOMBA_GRITO',
+            lolaBlaster: val === 'LOLA_BLASTER',
+            belcesword: val === 'BELCESWORD'
+        };
     }
 
     get hasPistol() {
@@ -106,7 +184,7 @@ class Player extends Entity {
     }
 
     get damageMultiplier() {
-        return this.dmgMult * (this.furyPotionTimer > 0 ? 1.3 : 1.0) * (this.damageBoostTimer > 0 ? 1.4 : 1.0);
+        return this.dmgMult * (this.furyPotionTimer > 0 ? 1.3 : 1.0) * (this.damageBoostTimer > 0 ? 1.4 : 1.0) * (this.weaknessTimer > 0 ? 0.90 : 1.0);
     }
 
     get speedMultiplier() {
@@ -116,25 +194,37 @@ class Player extends Entity {
     usePotion(type, game) {
         if (this.dead || !this.potions) return false;
         if (type === 'heal') {
-            if (this.potions.heal <= 0) return false;
-            if (this.hp >= this.maxHp) {
+            if (!this.infiniteItems && this.potions.heal <= 0) return false;
+            const isPoisoned = this.poisonTimer > 0;
+            if (this.hp >= this.maxHp && !isPoisoned) {
                 game.floatingTexts.push(new FloatingText(this.x, this.y - 26, 'VIDA AL MÁXIMO', '#4ade80', 14));
                 return false;
             }
-            this.potions.heal--;
-            const missingHp = this.maxHp - this.hp;
-            const healAmt = Math.max(1, Math.round(missingHp * 0.55));
-            this.hp = Math.min(this.maxHp, Math.round(this.hp + healAmt));
+            if (this.infiniteItems) this.potions.heal = this.maxPotionStack;
+            else this.potions.heal--;
+            this.poisonTimer = 0;
+            this.poisonTickTimer = 0;
+            const missingHp = Math.max(0, this.maxHp - this.hp);
+            const healAmt = missingHp > 0 ? Math.max(1, Math.round(missingHp * 0.55)) : 0;
+            if (healAmt > 0) {
+                this.hp = Math.min(this.maxHp, Math.round(this.hp + healAmt));
+            }
             this.triggerSquash(1.22, 0.84);
             soundManager.playPotionUse();
             game.spawnParticles(this.x, this.y, 20, '#4ade80', 150, true);
-            game.floatingTexts.push(new FloatingText(this.x, this.y - 28, `+${healAmt} HP (POCIÓN)`, '#4ade80', 17, true));
+            if (isPoisoned) {
+                game.floatingTexts.push(new FloatingText(this.x, this.y - 46, '¡VENENO CURADO!', '#39ff14', 17, true));
+            }
+            if (healAmt > 0) {
+                game.floatingTexts.push(new FloatingText(this.x, this.y - 28, `+${healAmt} HP (POCIÓN)`, '#4ade80', 17, true));
+            }
             if (game.updateHUD) game.updateHUD();
             return true;
         }
         if (type === 'fury') {
-            if (this.potions.fury <= 0) return false;
-            this.potions.fury--;
+            if (!this.infiniteItems && this.potions.fury <= 0) return false;
+            if (this.infiniteItems) this.potions.fury = this.maxPotionStack;
+            else this.potions.fury--;
             this.furyPotionTimer = 5.0;
             this.triggerSquash(1.26, 0.80);
             soundManager.playPotionUse();
@@ -144,8 +234,9 @@ class Player extends Entity {
             return true;
         }
         if (type === 'speed') {
-            if (this.potions.speed <= 0) return false;
-            this.potions.speed--;
+            if (!this.infiniteItems && this.potions.speed <= 0) return false;
+            if (this.infiniteItems) this.potions.speed = this.maxPotionStack;
+            else this.potions.speed--;
             this.speedPotionTimer = 5.0;
             this.triggerSquash(0.82, 1.24);
             soundManager.playPotionUse();
@@ -158,17 +249,26 @@ class Player extends Entity {
     }
 
     switchWeapon(weapon, game) {
+        if (weapon === 'SWORD' && !this.hasSword) return;
         if (weapon === 'GUN' && !this.hasGun) return;
         if (weapon === 'RIFLE' && !this.hasRifle) return;
         if (this.currentWeapon === weapon) return;
         this.currentWeapon = weapon;
-        const names = { SWORD: 'ESPADA EQUIPADA', GUN: 'PISTOLA EQUIPADA', RIFLE: 'RIFLE DE ASALTO EQUIPADO' };
+        this.lolaCharging = false;
+        this.lolaChargeTimer = 0;
+        this.lolaWaitRelease = false;
+        this.lolaFireAnimTimer = 0;
+        this.lolaMouthTimer = 0;
+        const swordLabel = this.hasPowerUp('BELCESWORD') ? 'BELCESWORD EQUIPADA' : 'ESPADA EQUIPADA';
+        const gunLabel = this.hasPowerUp('LOLA_BLASTER') ? 'LOLA BLASTER EQUIPADO' : 'PISTOLA EQUIPADA';
+        const names = { SWORD: swordLabel, GUN: gunLabel, RIFLE: 'RIFLE DE ASALTO EQUIPADO' };
         game.floatingTexts.push(new FloatingText(this.x, this.y - 24, names[weapon], '#00f5d4', 15));
         soundManager.playPickup();
     }
 
     toggleWeapon(game) {
-        const order = ['SWORD'];
+        const order = [];
+        if (this.hasSword) order.push('SWORD');
         if (this.hasGun) order.push('GUN');
         if (this.hasRifle) order.push('RIFLE');
         if (order.length < 2) return;
@@ -177,7 +277,7 @@ class Player extends Entity {
     }
 
     takeDamage(amount, sourceX, sourceY, kbForce, game) {
-        if (this.invulnTimer > 0 || this.isDashing || this.dead) return false;
+        if (this.isImmortal || this.invulnTimer > 0 || this.isDashing || this.dead) return false;
         const dmg = Math.round(amount);
         this.hp = Math.max(0, this.hp - dmg);
         this.hitFlash = 0.16;
@@ -225,9 +325,45 @@ class Player extends Entity {
         return true;
     }
 
+    applyPoison(duration = 4.0, game) {
+        if (this.dead) return false;
+        const wasPoisoned = this.poisonTimer > 0;
+        this.poisonTimer = Math.max(this.poisonTimer, duration);
+        if (!wasPoisoned || this.poisonTickTimer <= 0) {
+            this.poisonTickTimer = 1.0;
+        }
+        if (game) {
+            game.spawnParticles(this.x, this.y, 14, '#39ff14', 130, true);
+            if (!wasPoisoned && game.floatingTexts) {
+                game.floatingTexts.push(new FloatingText(this.x, this.y - 36, '☠️ ¡ENVENENADO (4s)!', '#39ff14', 17, true));
+            }
+        }
+        return true;
+    }
+
+    applyWeakness(duration = 4.0, game) {
+        if (this.dead) return false;
+        const shouldNotify = this.weaknessTimer <= 0 && this.weaknessTextCooldown <= 0;
+        this.weaknessTimer = Math.max(this.weaknessTimer, duration);
+        if (shouldNotify && game) {
+            this.weaknessTextCooldown = 1.5;
+            game.spawnParticles(this.x, this.y, 14, '#a855f7', 120, true);
+            if (game.floatingTexts) {
+                game.floatingTexts.push(new FloatingText(this.x, this.y - 36, '¡DAÑO -10% (4s)!', '#c084fc', 17, true));
+            }
+        }
+        return true;
+    }
+
     startDash(inputX, inputY, game) {
         if (this.sleepTimer > 0 || (game && game.state === 'BOSS_INTRO')) return;
         if (this.dashCooldownTimer > 0 || this.isDashing) return;
+
+        // Power-Up 1: Bomba Grito plantada en la posición inicial del Dash (radio reducido al 50% en v1.8.1: 67.5px)
+        if (this.hasPowerUp('BOMBA_GRITO') && game && game.bombs && typeof BombaGrito !== 'undefined') {
+            game.bombs.push(new BombaGrito(this.x, this.y, 67.5, 0.65));
+        }
+
         this.isDashing = true;
         this.dashTimer = this.dashDuration;
         this.dashCooldownTimer = this.dashCooldown;
@@ -249,17 +385,24 @@ class Player extends Entity {
     startAttack(game) {
         if (this.sleepTimer > 0 || (game && game.state === 'BOSS_INTRO')) return;
         if (this.currentWeapon === 'GUN') {
-            if (this.isReloadingPistol) return;
-            if (this.pistolAmmo <= 0) {
-                this.startPistolReload(game);
-                return;
+            if (!this.infiniteItems) {
+                if (this.isReloadingPistol) return;
+                if (this.pistolAmmo <= 0) {
+                    this.startPistolReload(game);
+                    return;
+                }
             }
             if (this.gunCooldownTimer > 0) return;
             this.gunCooldownTimer = this.gunCooldown;
-            this.pistolAmmo = Math.max(0, this.pistolAmmo - 1);
-            if (this.pistolAmmo <= 0) {
-                this.isReloadingPistol = true;
-                this.pistolReloadTimer = this.pistolReloadDuration;
+            if (!this.infiniteItems) {
+                this.pistolAmmo = Math.max(0, this.pistolAmmo - 1);
+                if (this.pistolAmmo <= 0) {
+                    this.isReloadingPistol = true;
+                    this.pistolReloadTimer = this.pistolReloadDuration;
+                }
+            } else {
+                this.pistolAmmo = this.pistolMaxAmmo;
+                this.isReloadingPistol = false;
             }
 
             // Retroceso visual y físico
@@ -272,7 +415,8 @@ class Player extends Entity {
             const bx = this.x + Math.cos(this.aimAngle) * spawnDist;
             const by = this.y + Math.sin(this.aimAngle) * spawnDist;
             const isCrit = Math.random() < 0.22;
-            const dmg = Math.round(18 * this.damageMultiplier * (isCrit ? 1.6 : 1.0));
+            const lolaBonus = this.hasPowerUp('LOLA_BLASTER') ? (1.05 * 1.45) : 1.0; // +45% daño en v1.7.1
+            const dmg = Math.round(18 * lolaBonus * this.damageMultiplier * (isCrit ? 1.6 : 1.0));
 
             game.projectiles.push(new Projectile(
                 bx, by,
@@ -288,17 +432,24 @@ class Player extends Entity {
         }
 
         if (this.currentWeapon === 'RIFLE') {
-            if (this.isReloadingRifle) return;
-            if (this.rifleAmmo <= 0) {
-                this.startRifleReload(game);
-                return;
+            if (!this.infiniteItems) {
+                if (this.isReloadingRifle) return;
+                if (this.rifleAmmo <= 0) {
+                    this.startRifleReload(game);
+                    return;
+                }
             }
             if (this.rifleCooldownTimer > 0) return;
             this.rifleCooldownTimer = this.rifleCooldown;
-            this.rifleAmmo = Math.max(0, this.rifleAmmo - 1);
-            if (this.rifleAmmo <= 0) {
-                this.isReloadingRifle = true;
-                this.rifleReloadTimer = this.rifleReloadDuration;
+            if (!this.infiniteItems) {
+                this.rifleAmmo = Math.max(0, this.rifleAmmo - 1);
+                if (this.rifleAmmo <= 0) {
+                    this.isReloadingRifle = true;
+                    this.rifleReloadTimer = this.rifleReloadDuration;
+                }
+            } else {
+                this.rifleAmmo = this.rifleMaxAmmo;
+                this.isReloadingRifle = false;
             }
 
             // Retroceso visual y ligera dispersión angular
@@ -329,21 +480,41 @@ class Player extends Entity {
             return;
         }
 
-        // Ataque con Espada
+        // Ataque con Espada (o Belcesword)
+        if (!this.hasSword) return;
         if (this.attackCooldownTimer > 0 || this.isAttacking) return;
+        const hasBelce = this.hasPowerUp('BELCESWORD');
+        if (hasBelce) {
+            this.belceSwingCount = (this.belceSwingCount || 0) + 1;
+            this.activeSwingBelceThird = (this.belceSwingCount % 3 === 0);
+        } else {
+            this.activeSwingBelceThird = false;
+        }
+
         this.isAttacking = true;
         this.attackTimer = this.attackDuration;
-        this.attackCooldownTimer = this.attackCooldown;
+        // Belcesword reduce su velocidad de ataque base un 10% (+10% cooldown)
+        this.attackCooldownTimer = hasBelce ? (this.attackCooldown * 1.10) : this.attackCooldown;
         this.attackBaseAngle = this.aimAngle;
         this.swingDir *= -1;
         this.hitTargetsInSwing.clear();
 
-        soundManager.playSwordSlash();
+        if (this.activeSwingBelceThird && soundManager.playBelcesword) {
+            soundManager.playBelcesword();
+        } else {
+            soundManager.playSwordSlash();
+        }
 
         // Pequeño impulso hacia adelante al atacar
         this.kbVx += Math.cos(this.aimAngle) * 95;
         this.kbVy += Math.sin(this.aimAngle) * 95;
-        this.triggerSquash(1.22, 0.82);
+        this.triggerSquash(this.activeSwingBelceThird ? 1.35 : 1.22, this.activeSwingBelceThird ? 0.72 : 0.82);
+
+        if (this.activeSwingBelceThird && game) {
+            game.addScreenShake(6, 0.16);
+            game.spawnParticles(this.x, this.y, 18, '#a855f7', 180, true);
+            game.floatingTexts.push(new FloatingText(this.x, this.y - 34, '¡TAJO BELCE!', '#c084fc', 18, true));
+        }
 
         // Registrar rastro visual de corte (Slash Trail)
         this.slashTrails.push({
@@ -353,12 +524,69 @@ class Player extends Entity {
             dir: this.swingDir,
             life: 0.18,
             maxLife: 0.18,
-            boosted: this.damageBoostTimer > 0 || this.furyPotionTimer > 0
+            boosted: this.damageBoostTimer > 0 || this.furyPotionTimer > 0,
+            belce: hasBelce,
+            belceThird: this.activeSwingBelceThird
         });
     }
 
+    fireLolaChargedOrb(game) {
+        this.lolaChargeTimer = 0;
+        this.lolaCharging = false;
+        this.lolaFireAnimTimer = 0.95; // Cambia a Lola_Blaster2.png durante 0.95s (v1.7.1)
+        this.lolaMouthTimer = 0.95;
+        this.gunCooldownTimer = 0.25;
+
+        this.kbVx -= Math.cos(this.aimAngle) * 145;
+        this.kbVy -= Math.sin(this.aimAngle) * 145;
+        this.triggerSquash(0.76, 1.3);
+
+        const speed = 540;
+        const spawnDist = 30;
+        const bx = this.x + Math.cos(this.aimAngle) * spawnDist;
+        const by = this.y + Math.sin(this.aimAngle) * spawnDist;
+        const orbDmg = Math.round(34 * 1.05 * 1.45 * this.damageMultiplier); // +45% daño (v1.7.1)
+
+        game.projectiles.push(new Projectile(
+            bx, by,
+            Math.cos(this.aimAngle) * speed,
+            Math.sin(this.aimAngle) * speed,
+            26,
+            orbDmg,
+            '#00f5d4',
+            false,
+            null,
+            {
+                kind: 'LOLA_ORB',
+                maxDistance: 400,
+                piercing: true,
+                aoeRadius: 90,
+                aoeDamage: Math.round(orbDmg * 0.65)
+            }
+        ));
+
+        if (soundManager.playLolaBlasterCharged) soundManager.playLolaBlasterCharged();
+        else soundManager.playGunshot();
+        game.spawnParticles(bx, by, 22, '#00f5d4', 180, true);
+        game.floatingTexts.push(new FloatingText(this.x, this.y - 34, '¡ORBE LOLA!', '#00f5d4', 17, true));
+        game.addScreenShake(6, 0.14);
+    }
+
     update(dt, game) {
+        if (this.infiniteItems) {
+            this.potions.heal = this.maxPotionStack;
+            this.potions.fury = this.maxPotionStack;
+            this.potions.speed = this.maxPotionStack;
+            this.pistolAmmo = this.pistolMaxAmmo;
+            this.rifleAmmo = this.rifleMaxAmmo;
+            this.isReloadingPistol = false;
+            this.isReloadingRifle = false;
+            this.gold = Math.max(this.gold || 0, 999);
+        }
+
         // Actualizar temporizadores de mejoras y pociones
+        if (this.lolaFireAnimTimer > 0) this.lolaFireAnimTimer = Math.max(0, this.lolaFireAnimTimer - dt);
+        if (this.lolaMouthTimer > 0) this.lolaMouthTimer = Math.max(0, this.lolaMouthTimer - dt);
         if (this.damageBoostTimer > 0) this.damageBoostTimer = Math.max(0, this.damageBoostTimer - dt);
         if (this.speedBoostTimer > 0) this.speedBoostTimer = Math.max(0, this.speedBoostTimer - dt);
         if (this.furyPotionTimer > 0) this.furyPotionTimer = Math.max(0, this.furyPotionTimer - dt);
@@ -412,6 +640,47 @@ class Player extends Entity {
                 if (game && game.floatingTexts) {
                     game.floatingTexts.push(new FloatingText(this.x, this.y - 26, '¡DESPIERTO!', '#38bdf8', 15, true));
                 }
+            }
+        }
+
+        // Temporizadores de Debilitamiento (Charco Risín Pepín) y Veneno (Patirrona de Villa)
+        if (this.weaknessTextCooldown > 0) this.weaknessTextCooldown = Math.max(0, this.weaknessTextCooldown - dt);
+        if (this.weaknessTimer > 0) this.weaknessTimer = Math.max(0, this.weaknessTimer - dt);
+
+        if (this.poisonTimer > 0 && (!game || game.state === 'PLAYING')) {
+            this.poisonTimer = Math.max(0, this.poisonTimer - dt);
+            this.poisonTickTimer -= dt;
+            this.poisonBubbleTimer -= dt;
+            if (this.poisonBubbleTimer <= 0 && game && game.spawnParticles) {
+                this.poisonBubbleTimer = 0.22;
+                game.spawnParticles(
+                    this.x + MathUtils.randRange(-14, 14),
+                    this.y + MathUtils.randRange(-18, 6),
+                    2, '#39ff14', 45, true
+                );
+            }
+            if (this.poisonTickTimer <= 0) {
+                this.poisonTickTimer += 1.0;
+                if (!this.isImmortal) {
+                    const poisonDmg = Math.max(1, Math.round(this.maxHp * 0.015));
+                    this.hp = Math.max(0, this.hp - poisonDmg);
+                    this.hitFlash = Math.max(this.hitFlash, 0.08);
+                    if (soundManager.playPoisonTick) soundManager.playPoisonTick();
+                    if (game) {
+                        game.spawnParticles(this.x, this.y, 8, '#39ff14', 95, true);
+                        if (game.floatingTexts) {
+                            game.floatingTexts.push(new FloatingText(this.x, this.y - 26, `-${poisonDmg} VENENO`, '#39ff14', 15, true));
+                        }
+                    }
+                    if (this.hp <= 0) {
+                        this.dead = true;
+                        if (game && game.onPlayerDeath) game.onPlayerDeath();
+                        return;
+                    }
+                }
+            }
+            if (this.poisonTimer <= 0) {
+                this.poisonTickTimer = 0;
             }
         }
 
@@ -489,14 +758,54 @@ class Player extends Entity {
             this.aimAngle = Math.atan2(moveY, moveX);
         }
 
-        // Inputs de Dash y Ataque (Soporte PC + Móvil Fuego Continuo)
+        // Inputs de Dash y Ataque (Soporte PC + Móvil Fuego Continuo + Carga Lola Blaster)
         if (!game.isShopOpen) {
             if (keys['Space'] || keys['ShiftLeft'] || keys['ShiftRight']) {
                 this.startDash(moveX, moveY, game);
             }
-            if (game.mouse.down || keys['KeyJ'] || (game.touchControls && game.touchControls.isAttackTouchHeld)) {
-                this.startAttack(game);
+            const attackHeld = !!(game.mouse.down || keys['KeyJ'] || (game.touchControls && game.touchControls.isAttackTouchHeld));
+            if (this.hasPowerUp('LOLA_BLASTER') && this.currentWeapon === 'GUN') {
+                if (attackHeld) {
+                    if (!this.wasAttackHeld && !this.lolaCharging && !this.lolaWaitRelease) {
+                        this.startAttack(game);
+                        this.lolaCharging = true;
+                        this.lolaChargeTimer = 0;
+                    } else if (this.lolaCharging && !this.lolaWaitRelease) {
+                        this.lolaChargeTimer += dt;
+                        this.lolaParticleTimer -= dt;
+                        if (this.lolaParticleTimer <= 0 && game && game.spawnParticles) {
+                            this.lolaParticleTimer = 0.08;
+                            const mx = this.x + Math.cos(this.aimAngle) * 44;
+                            const my = this.y + Math.sin(this.aimAngle) * 44;
+                            game.spawnParticles(mx, my, 2, '#00f5d4', 65, true);
+                        }
+                        if (this.lolaChargeTimer >= this.lolaChargeThreshold) {
+                            this.fireLolaChargedOrb(game);
+                            this.lolaWaitRelease = true;
+                        }
+                    }
+                } else {
+                    if (this.lolaCharging && this.lolaChargeTimer >= this.lolaChargeThreshold) {
+                        this.fireLolaChargedOrb(game);
+                    }
+                    this.lolaCharging = false;
+                    this.lolaChargeTimer = 0;
+                    this.lolaWaitRelease = false;
+                }
+            } else {
+                this.lolaCharging = false;
+                this.lolaChargeTimer = 0;
+                this.lolaWaitRelease = false;
+                if (attackHeld) {
+                    this.startAttack(game);
+                }
             }
+            this.wasAttackHeld = attackHeld;
+        } else {
+            this.lolaCharging = false;
+            this.lolaChargeTimer = 0;
+            this.lolaWaitRelease = false;
+            this.wasAttackHeld = false;
         }
 
         // Lógica de Movimiento o Dash
@@ -576,9 +885,14 @@ class Player extends Entity {
     }
 
     checkSwordCollisions(game) {
-        const halfArc = this.swordArc * 0.5;
+        const hasBelce = this.hasPowerUp('BELCESWORD');
+        const isThird = hasBelce && this.activeSwingBelceThird;
+        const reach = isThird ? (this.swordReach * 1.45) : this.swordReach;
+        const halfArc = (isThird ? Math.min(Math.PI * 1.65, this.swordArc * 1.45) : this.swordArc) * 0.5;
         const isCrit = Math.random() < 0.22;
-        const finalDamage = Math.round(this.baseDamage * this.damageMultiplier * (isCrit ? 1.65 : 1.0));
+        const belceMult = hasBelce ? (isThird ? 1.10 * 1.30 : 1.10) : 1.0;
+        const kbBoost = hasBelce ? 1.50 : 1.0;
+        const finalDamage = Math.round(this.baseDamage * belceMult * this.damageMultiplier * (isCrit ? 1.65 : 1.0));
 
         // Contra Enemigos y Jefe
         const targets = [...game.enemies];
@@ -591,15 +905,15 @@ class Player extends Entity {
 
             const hit = MathUtils.sectorCircleCollide(
                 this.x, this.y,
-                10, this.swordReach,
+                10, reach,
                 this.attackBaseAngle, halfArc,
                 enemy.x, enemy.y, enemy.radius
             );
 
             if (hit) {
                 this.hitTargetsInSwing.add(enemy);
-                enemy.takeDamage(finalDamage, this.x, this.y, isCrit ? 420 : 290, isCrit, game);
-                if (isCrit) {
+                enemy.takeDamage(finalDamage, this.x, this.y, Math.round((isCrit ? 420 : 290) * kbBoost), isCrit || isThird, game);
+                if (isCrit || isThird) {
                     game.addScreenShake(7, 0.16);
                 } else {
                     game.addScreenShake(3, 0.08);
@@ -612,7 +926,7 @@ class Player extends Entity {
             if (pillar.dead || this.hitTargetsInSwing.has(pillar)) continue;
             const hit = MathUtils.sectorCircleCollide(
                 this.x, this.y,
-                10, this.swordReach,
+                10, reach,
                 this.attackBaseAngle, halfArc,
                 pillar.x, pillar.y, pillar.radius
             );
@@ -628,7 +942,7 @@ class Player extends Entity {
                 if (proj.dead || !proj.isEnemy) continue;
                 const hit = MathUtils.sectorCircleCollide(
                     this.x, this.y,
-                    10, this.swordReach,
+                    10, reach,
                     this.attackBaseAngle, halfArc,
                     proj.x, proj.y, proj.radius
                 );
@@ -655,31 +969,33 @@ class Player extends Entity {
             ctx.restore();
         }
 
-        // 2. Dibujar estelas de corte (Slash Trails de 120°)
+        // 2. Dibujar estelas de corte (Slash Trails de 120° / Belcesword morada gigante en 3er golpe)
         for (const trail of this.slashTrails) {
             ctx.save();
             ctx.translate(trail.x, trail.y);
-            const alpha = (trail.life / trail.maxLife) * 0.65;
+            const alpha = (trail.life / trail.maxLife) * (trail.belceThird ? 0.85 : 0.65);
             ctx.globalAlpha = alpha;
 
-            const startAngle = trail.angle - this.swordArc * 0.5;
-            const endAngle = trail.angle + this.swordArc * 0.5;
-            const color = trail.boosted ? '#fbbf24' : '#00f5d4';
+            const arc = trail.belceThird ? Math.min(Math.PI * 1.65, this.swordArc * 1.45) : this.swordArc;
+            const reach = trail.belceThird ? this.swordReach * 1.45 : this.swordReach;
+            const startAngle = trail.angle - arc * 0.5;
+            const endAngle = trail.angle + arc * 0.5;
+            const color = trail.belce ? (trail.belceThird ? '#c084fc' : '#7e22ce') : (trail.boosted ? '#fbbf24' : '#00f5d4');
 
-            ctx.shadowBlur = 18;
+            ctx.shadowBlur = trail.belceThird ? 26 : 18;
             ctx.shadowColor = color;
             ctx.fillStyle = color;
             ctx.beginPath();
-            ctx.arc(0, 0, this.swordReach, startAngle, endAngle);
-            ctx.arc(0, 0, this.swordReach * 0.42, endAngle, startAngle, true);
+            ctx.arc(0, 0, reach, startAngle, endAngle);
+            ctx.arc(0, 0, reach * 0.42, endAngle, startAngle, true);
             ctx.closePath();
             ctx.fill();
 
             // Borde brillante exterior del corte
-            ctx.strokeStyle = '#ffffff';
-            ctx.lineWidth = 2.5;
+            ctx.strokeStyle = trail.belceThird ? '#f3e8ff' : '#ffffff';
+            ctx.lineWidth = trail.belceThird ? 3.5 : 2.5;
             ctx.beginPath();
-            ctx.arc(0, 0, this.swordReach, startAngle, endAngle);
+            ctx.arc(0, 0, reach, startAngle, endAngle);
             ctx.stroke();
             ctx.restore();
         }
@@ -775,6 +1091,30 @@ class Player extends Entity {
             ctx.arc(0, 0, this.radius + 16, 0, Math.PI * 2);
             ctx.stroke();
             ctx.setLineDash([]);
+            ctx.restore();
+        }
+        if (this.poisonTimer > 0) {
+            ctx.save();
+            ctx.strokeStyle = '#39ff14';
+            ctx.shadowColor = '#39ff14';
+            ctx.shadowBlur = 12;
+            ctx.lineWidth = 2.2;
+            ctx.setLineDash([4, 4]);
+            ctx.beginPath();
+            ctx.arc(0, 0, this.radius + 12 + Math.sin(this.animTime * 11) * 1.5, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            ctx.restore();
+        }
+        if (this.weaknessTimer > 0) {
+            ctx.save();
+            ctx.strokeStyle = '#a855f7';
+            ctx.shadowColor = '#a855f7';
+            ctx.shadowBlur = 12;
+            ctx.lineWidth = 2.2;
+            ctx.beginPath();
+            ctx.arc(0, 4, this.radius + 17, 0, Math.PI * 2);
+            ctx.stroke();
             ctx.restore();
         }
 
@@ -906,68 +1246,144 @@ class Player extends Entity {
             }
             ctx.restore();
         } else
-        // Anclaje directo de la Pistola a la mano
+        // Anclaje directo de la Pistola / Lola Blaster a la mano
         if (this.currentWeapon === 'GUN') {
             ctx.save();
             ctx.rotate(this.aimAngle);
-            // Empuñadura
-            ctx.fillStyle = '#3e2723';
-            ctx.fillRect(-2, 1, 6, 9);
-            // Cañón y corredera
-            ctx.fillStyle = '#475569';
-            ctx.strokeStyle = '#1e293b';
-            ctx.lineWidth = 1.3;
-            ctx.fillRect(0, -3.5, 20, 7);
-            ctx.strokeRect(0, -3.5, 20, 7);
-            // Cañón láser/neón
-            ctx.fillStyle = '#00f5d4';
-            ctx.fillRect(20, -2.5, 3.5, 5);
-            // Mira láser
-            ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
-            ctx.lineWidth = 1;
-            ctx.setLineDash([4, 6]);
-            ctx.beginPath();
-            ctx.moveTo(23, 0);
-            ctx.lineTo(130, 0);
-            ctx.stroke();
-            ctx.setLineDash([]);
+            if (facingLeft) ctx.scale(1, -1);
+
+            if (this.hasPowerUp('LOLA_BLASTER')) {
+                const animTimer = Math.max(this.lolaFireAnimTimer || 0, this.lolaMouthTimer || 0);
+                const useOpen = animTimer > 0;
+                const tex = (useOpen && typeof lolaBlaster2Img !== 'undefined' && lolaBlaster2Img.complete && lolaBlaster2Img.naturalWidth > 0)
+                    ? lolaBlaster2Img
+                    : (typeof lolaBlasterImg !== 'undefined' && lolaBlasterImg.complete && lolaBlasterImg.naturalWidth > 0 ? lolaBlasterImg : null);
+                const cProg = this.lolaCharging ? MathUtils.clamp(this.lolaChargeTimer / (this.lolaChargeThreshold || 1.5), 0, 1) : 0;
+
+                // Crecimiento progresivo de 1.0x a 1.9x (+90%) con temblor de energía, y regreso suave al disparar
+                let lolaScale = 1.0;
+                let wobbleX = 0;
+                let wobbleY = 0;
+                if (cProg > 0) {
+                    lolaScale = 1.0 + cProg * 0.90;
+                    const wobbleAmt = cProg * 2.4;
+                    wobbleX = (Math.random() - 0.5) * wobbleAmt;
+                    wobbleY = (Math.random() - 0.5) * wobbleAmt;
+                } else if (useOpen) {
+                    const releaseRatio = MathUtils.clamp(animTimer / (this.lolaMouthDuration || 0.95), 0, 1);
+                    lolaScale = 1.0 + releaseRatio * 0.90; // Regresa suavemente de 1.9x a 1.0x al disparar
+                }
+
+                if (cProg > 0) {
+                    ctx.save();
+                    ctx.shadowBlur = 14 + cProg * 22;
+                    ctx.shadowColor = '#00f5d4';
+                    ctx.strokeStyle = `rgba(0, 245, 212, ${0.45 + cProg * 0.55})`;
+                    ctx.lineWidth = 2.5;
+                    ctx.beginPath();
+                    ctx.arc(16, 0, (12 + cProg * 10) * lolaScale, -Math.PI * 0.5, -Math.PI * 0.5 + Math.PI * 2 * cProg);
+                    ctx.stroke();
+                    ctx.restore();
+                }
+
+                if (tex) {
+                    ctx.save();
+                    ctx.translate(wobbleX, wobbleY);
+                    ctx.scale(lolaScale, lolaScale);
+                    if (cProg > 0 || useOpen) {
+                        ctx.shadowBlur = 16 + (cProg * 10);
+                        ctx.shadowColor = '#00f5d4';
+                    }
+                    ctx.drawImage(tex, -8, -22, 48, 44);
+                    ctx.restore();
+                } else {
+                    ctx.save();
+                    ctx.scale(lolaScale, lolaScale);
+                    ctx.fillStyle = '#06b6d4';
+                    ctx.fillRect(0, -6, 26, 12);
+                    ctx.restore();
+                }
+
+                // Mira láser
+                ctx.strokeStyle = 'rgba(0, 245, 212, 0.45)';
+                ctx.lineWidth = 1;
+                ctx.setLineDash([4, 6]);
+                ctx.beginPath();
+                ctx.moveTo(32 * lolaScale, 0);
+                ctx.lineTo(135, 0);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            } else {
+                // Empuñadura
+                ctx.fillStyle = '#3e2723';
+                ctx.fillRect(-2, 1, 6, 9);
+                // Cañón y corredera
+                ctx.fillStyle = '#475569';
+                ctx.strokeStyle = '#1e293b';
+                ctx.lineWidth = 1.3;
+                ctx.fillRect(0, -3.5, 20, 7);
+                ctx.strokeRect(0, -3.5, 20, 7);
+                // Cañón láser/neón
+                ctx.fillStyle = '#00f5d4';
+                ctx.fillRect(20, -2.5, 3.5, 5);
+                // Mira láser
+                ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
+                ctx.lineWidth = 1;
+                ctx.setLineDash([4, 6]);
+                ctx.beginPath();
+                ctx.moveTo(23, 0);
+                ctx.lineTo(130, 0);
+                ctx.stroke();
+                ctx.setLineDash([]);
+            }
             ctx.restore();
-        } else {
-            // Anclaje directo de la Espada a la mano
+        } else if (this.hasSword) {
+            // Anclaje directo de la Espada / Belcesword a la mano
             ctx.save();
             ctx.rotate(weaponAngle);
-            const bladeLen = this.isAttacking ? this.swordReach - 10 : 54;
+            if (this.hasPowerUp('BELCESWORD') && typeof belceswordImg !== 'undefined' && belceswordImg.complete && belceswordImg.naturalWidth > 0) {
+                const isThird = this.isAttacking && this.activeSwingBelceThird;
+                const sScale = isThird ? 1.35 : 1.0;
+                ctx.save();
+                ctx.scale(sScale, sScale);
+                ctx.shadowBlur = isThird ? 20 : 10;
+                ctx.shadowColor = '#a855f7';
+                ctx.drawImage(belceswordImg, -4, -18, 66, 36);
+                ctx.restore();
+            } else {
+                const bladeLen = this.isAttacking ? this.swordReach - 10 : 54;
 
-            // Empuñadura (madera blocky)
-            ctx.fillStyle = '#8b5a2b';
-            ctx.strokeStyle = '#3e2723';
-            ctx.lineWidth = 1.3;
-            ctx.fillRect(-7, -3, 7, 6);
-            ctx.strokeRect(-7, -3, 7, 6);
+                // Empuñadura (madera blocky)
+                ctx.fillStyle = '#8b5a2b';
+                ctx.strokeStyle = '#3e2723';
+                ctx.lineWidth = 1.3;
+                ctx.fillRect(-7, -3, 7, 6);
+                ctx.strokeRect(-7, -3, 7, 6);
 
-            // Guardia de la espada (oro/acero)
-            ctx.fillStyle = '#fbbf24';
-            ctx.fillRect(0, -8, 5, 16);
-            ctx.strokeRect(0, -8, 5, 16);
+                // Guardia de la espada (oro/acero)
+                ctx.fillStyle = '#fbbf24';
+                ctx.fillRect(0, -8, 5, 16);
+                ctx.strokeRect(0, -8, 5, 16);
 
-            // Hoja Diamante / Minecraft Style
-            const bladeColor = this.damageBoostTimer > 0 ? '#fde047' : '#00f5d4';
-            ctx.fillStyle = bladeColor;
-            ctx.strokeStyle = '#0284c7';
-            ctx.lineWidth = 1.6;
-            ctx.beginPath();
-            ctx.moveTo(5, -4.5);
-            ctx.lineTo(bladeLen - 9, -4);
-            ctx.lineTo(bladeLen, 0);
-            ctx.lineTo(bladeLen - 9, 4);
-            ctx.lineTo(5, 4.5);
-            ctx.closePath();
-            ctx.fill();
-            ctx.stroke();
+                // Hoja Diamante / Minecraft Style
+                const bladeColor = this.damageBoostTimer > 0 ? '#fde047' : '#00f5d4';
+                ctx.fillStyle = bladeColor;
+                ctx.strokeStyle = '#0284c7';
+                ctx.lineWidth = 1.6;
+                ctx.beginPath();
+                ctx.moveTo(5, -4.5);
+                ctx.lineTo(bladeLen - 9, -4);
+                ctx.lineTo(bladeLen, 0);
+                ctx.lineTo(bladeLen - 9, 4);
+                ctx.lineTo(5, 4.5);
+                ctx.closePath();
+                ctx.fill();
+                ctx.stroke();
 
-            // Núcleo brillante de la hoja
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(7, -1, bladeLen - 18, 2);
+                // Núcleo brillante de la hoja
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(7, -1, bladeLen - 18, 2);
+            }
 
             ctx.restore();
         }
@@ -1082,6 +1498,31 @@ class Player extends Entity {
             ctx.strokeText('1/2 💤', this.x, barY - 13);
             ctx.fillStyle = '#c084fc';
             ctx.fillText('1/2 💤', this.x, barY - 13);
+            ctx.restore();
+        }
+
+        // 8. Indicadores visuales de Veneno y Debilitamiento (-10% daño)
+        if (this.poisonTimer > 0 || this.weaknessTimer > 0) {
+            ctx.save();
+            ctx.font = '900 9.5px "Courier New", monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom';
+            ctx.strokeStyle = '#0f172a';
+            ctx.lineWidth = 2.5;
+            let statusY = barY - (this.sleepTimer > 0 || this.gargoyleHits === 1 ? 26 : 13);
+            if (this.poisonTimer > 0) {
+                const pTxt = `☠️ ${this.poisonTimer.toFixed(1)}s`;
+                ctx.strokeText(pTxt, this.x, statusY);
+                ctx.fillStyle = '#39ff14';
+                ctx.fillText(pTxt, this.x, statusY);
+                statusY -= 12;
+            }
+            if (this.weaknessTimer > 0) {
+                const wTxt = `⬇-10% (${this.weaknessTimer.toFixed(1)}s)`;
+                ctx.strokeText(wTxt, this.x, statusY);
+                ctx.fillStyle = '#c084fc';
+                ctx.fillText(wTxt, this.x, statusY);
+            }
             ctx.restore();
         }
     }
