@@ -35,9 +35,9 @@
                 <span id="weapon-hint" style="color: #94a3b8; font-size: 11px;">[1]</span>
             </div>
             <div id="potions-hud" class="potions-badge">
-                <span id="pot-slot-heal" class="pot-chip pot-heal" title="Tecla 4: Poción de Vida (+55% vida faltante)">[4] <img src="central.png" alt="Vida" class="pot-hud-img"><b id="pot-count-heal">x0</b></span>
-                <span id="pot-slot-fury" class="pot-chip pot-fury" title="Tecla 5: Poción de Furia (+30% daño 5s)">[5] <img src="smirnoff.png" onerror="if(!this._retried){this._retried=true;this.src='Smirnoff.png';}" alt="Furia" class="pot-hud-img"><b id="pot-count-fury">x0</b></span>
-                <span id="pot-slot-speed" class="pot-chip pot-speed" title="Tecla 6: Poción de Velocidad (+30% vel 5s)">[6] <img src="vive100.png" alt="Velocidad" class="pot-hud-img"><b id="pot-count-speed">x0</b></span>
+                <span id="pot-slot-heal" class="pot-chip pot-heal" title="Tecla 4: Poción de Vida (+55% vida faltante)">[4] <img src="img/central.png" alt="Vida" class="pot-hud-img"><b id="pot-count-heal">x0</b></span>
+                <span id="pot-slot-fury" class="pot-chip pot-fury" title="Tecla 5: Poción de Furia (+30% daño 5s)">[5] <img src="img/Smirnoff.png" onerror="if(!this._retried){this._retried=true;this.src='img/smirnoff.png';}" alt="Furia" class="pot-hud-img"><b id="pot-count-fury">x0</b></span>
+                <span id="pot-slot-speed" class="pot-chip pot-speed" title="Tecla 6: Poción de Velocidad (+30% vel 5s)">[6] <img src="img/vive100.png" alt="Velocidad" class="pot-hud-img"><b id="pot-count-speed">x0</b></span>
             </div>
             <div id="buff-indicator" class="buff-status"></div>
         </div>
@@ -171,21 +171,21 @@
         </div>
         <div class="shop-cards-row">
             <div class="shop-card shop-card-heal">
-                <img src="central.png" alt="Cerveza Central - Vida" class="shop-potion-img">
+                <img src="img/central.png" alt="Cerveza Central - Vida" class="shop-potion-img">
                 <div class="shop-card-name" style="color:#4ade80;">POCIÓN DE VIDA [4]</div>
                 <div class="shop-card-desc">Cura el 55% de tu vida faltante al instante (Cerveza Central)</div>
                 <div class="shop-card-stock">Inventario: <b id="shop-count-heal">0/3</b></div>
                 <button id="btn-buy-heal" class="btn-action btn-shop-buy">COMPRAR (3 ORO)</button>
             </div>
             <div class="shop-card shop-card-fury">
-                <img src="smirnoff.png" onerror="if(!this._retried){this._retried=true;this.src='Smirnoff.png';}" alt="Smirnoff - Furia" class="shop-potion-img">
+                <img src="img/Smirnoff.png" onerror="if(!this._retried){this._retried=true;this.src='img/smirnoff.png';}" alt="Smirnoff - Furia" class="shop-potion-img">
                 <div class="shop-card-name" style="color:#f97316;">POCIÓN DE FURIA [5]</div>
                 <div class="shop-card-desc">+30% a todo tu daño durante 5.0 segundos (Smirnoff)</div>
                 <div class="shop-card-stock">Inventario: <b id="shop-count-fury">0/3</b></div>
                 <button id="btn-buy-fury" class="btn-action btn-shop-buy">COMPRAR (5 ORO)</button>
             </div>
             <div class="shop-card shop-card-speed">
-                <img src="vive100.png" alt="Vive 100 - Velocidad" class="shop-potion-img">
+                <img src="img/vive100.png" alt="Vive 100 - Velocidad" class="shop-potion-img">
                 <div class="shop-card-name" style="color:#38bdf8;">POCIÓN VELOCIDAD [6]</div>
                 <div class="shop-card-desc">+30% velocidad de movimiento por 5.0s (Vive 100%)</div>
                 <div class="shop-card-stock">Inventario: <b id="shop-count-speed">0/3</b></div>
@@ -199,19 +199,19 @@
         <div class="subtitle" style="margin-bottom: 14px;">EL PEPE MAESTRO HA CAÍDO — SELECCIONA 1 RELIQUIA PERMANENTE</div>
         <div class="shop-cards-row powerup-cards-row">
             <div class="shop-card powerup-card-bomba">
-                <img src="Bomba_grito.png" onerror="if(!this._retried){this._retried=true;this.src='bomba_grito.png';}" alt="Bomba Grito" class="powerup-img">
+                <img src="img/Bomba_grito.png" onerror="if(!this._retried){this._retried=true;this.src='img/bomba_grito.png';}" alt="Bomba Grito" class="powerup-img">
                 <div class="shop-card-name" style="color:#f97316;">BOMBA GRITO</div>
                 <div class="shop-card-desc">Al hacer <b>Dash</b> dejas una bomba que explota tras 0.65s en área (67px) quitando el <b>50% de vida máxima</b> a los enemigos.</div>
                 <button id="btn-pick-bomba" class="btn-action btn-shop-buy" style="border-color:#f97316; color:#f97316;">ELEGIR BOMBA GRITO</button>
             </div>
             <div class="shop-card powerup-card-lola">
-                <img src="Lola_Blaster.png" onerror="if(!this._retried){this._retried=true;this.src='lola_blaster.png';}" alt="Lola Blaster" class="powerup-img">
+                <img src="img/Lola_Blaster.png" onerror="if(!this._retried){this._retried=true;this.src='img/lola_blaster.png';}" alt="Lola Blaster" class="powerup-img">
                 <div class="shop-card-name" style="color:#00f5d4;">LOLA BLASTER</div>
                 <div class="shop-card-desc">Reemplaza la pistola (<b>+52% daño</b>). Mantén disparar <b>1.5s</b>: crece progresivamente y dispara un <b>Orbe de Energía</b> gigante (+45% daño) que traspasa enemigos con daño AoE.</div>
                 <button id="btn-pick-lola" class="btn-action btn-shop-buy" style="border-color:#00f5d4; color:#00f5d4;">ELEGIR LOLA BLASTER</button>
             </div>
             <div class="shop-card powerup-card-belce">
-                <img src="Belcesword.png" onerror="if(!this._retried){this._retried=true;this.src='belcesword.png';}" alt="Belcesword" class="powerup-img">
+                <img src="img/Belcesword.png" onerror="if(!this._retried){this._retried=true;this.src='img/belcesword.png';}" alt="Belcesword" class="powerup-img">
                 <div class="shop-card-name" style="color:#c084fc;">BELCESWORD</div>
                 <div class="shop-card-desc">Reemplaza la espada (<b>+10% daño</b>, +50% empuje, -10% vel. ataque). <b>Cada 3er ataque</b> es gigante e inflige <b>+30% de daño</b>.</div>
                 <button id="btn-pick-belce" class="btn-action btn-shop-buy" style="border-color:#c084fc; color:#c084fc;">ELEGIR BELCESWORD</button>

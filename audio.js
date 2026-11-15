@@ -4,15 +4,15 @@
  * ============================================================================
  */
 const CUSTOM_AUDIO_CANDIDATES = {
-    elPepe: ['El pepe.mp3', 'el pepe.mp3', 'el_pepe.mp3', 'El_pepe.mp3'],
-    pepeMuerte: ['Pepe_Muerte.mp3', 'pepe_muerte.mp3'],
-    eteSech: ['ete sech.mp3', 'ete_sech.mp3', 'Ete_sech.mp3'],
-    bombaGrito: ['Bomba_Grito.mp3', 'bomba_grito.mp3'],
-    risaPepin: ['Risa_pepin.mp3', 'risa_pepin.mp3'],
-    risinMuerte: ['Risin_Muerte.mp3', 'risin_muerte.mp3'],
-    lolaBlaster: ['Lola_Blaster.mp3', 'lola_blaster.mp3'],
-    belcesword: ['Belcesword.mp3', 'belcesword.mp3'],
-    muerteOxxo: ['Muerte oxxo.mp3', 'muerte oxxo.mp3', 'Muerte_oxxo.mp3', 'muerte_oxxo.mp3']
+    elPepe: ['audio/El pepe.mp3', 'audio/el pepe.mp3', 'audio/el_pepe.mp3', 'audio/El_pepe.mp3'],
+    pepeMuerte: ['audio/Pepe_Muerte.mp3', 'audio/pepe_muerte.mp3'],
+    eteSech: ['audio/ete sech.mp3', 'audio/ete_sech.mp3', 'audio/Ete_sech.mp3'],
+    bombaGrito: ['audio/Bomba_Grito.mp3', 'audio/bomba_grito.mp3'],
+    risaPepin: ['audio/Risa_pepin.mp3', 'audio/risa_pepin.mp3'],
+    risinMuerte: ['audio/Risin_Muerte.mp3', 'audio/risin_muerte.mp3'],
+    lolaBlaster: ['audio/Lola_Blaster.mp3', 'audio/lola_blaster.mp3'],
+    belcesword: ['audio/Belcesword.mp3', 'audio/belcesword.mp3'],
+    muerteOxxo: ['audio/Muerte oxxo.mp3', 'audio/muerte oxxo.mp3', 'audio/Muerte_oxxo.mp3', 'audio/muerte_oxxo.mp3']
 };
 
 class SoundManager {
@@ -457,51 +457,51 @@ class SoundManager {
 
 const soundManager = new SoundManager();
 
-// Recursos de imagen compartidos (skins)
+// Recursos de imagen compartidos (skins en img/)
 const playerImg = new Image();
-playerImg.src = 'player.png';
+playerImg.src = 'img/player.png';
 const meleeImg = new Image();
-meleeImg.src = 'melee.png';
+meleeImg.src = 'img/melee.png';
 const rangedImg = new Image();
-rangedImg.src = 'ranged.png';
+rangedImg.src = 'img/ranged.png';
 const pepeImg = new Image();
-pepeImg.src = 'pepe.png';
+pepeImg.src = 'img/pepe.png';
 const etesechImg = new Image();
-etesechImg.src = 'etesech.png';
+etesechImg.src = 'img/etesech.png';
 const risinImg = new Image();
-risinImg.src = 'risinpepin.png';
+risinImg.src = 'img/risinpepin.png';
 const villaImg = new Image();
 villaImg.onerror = () => {
     if (!villaImg._retried) {
         villaImg._retried = true;
-        villaImg.src = 'Villa.png';
+        villaImg.src = 'img/Villa.png';
     }
 };
-villaImg.src = 'villa.png';
+villaImg.src = 'img/villa.png';
 const patirronaImg = new Image();
 patirronaImg.onerror = () => {
     if (!patirronaImg._retried) {
         patirronaImg._retried = true;
-        patirronaImg.src = 'Patirrona.png';
+        patirronaImg.src = 'img/Patirrona.png';
     }
 };
-patirronaImg.src = 'patirrona.png';
+patirronaImg.src = 'img/patirrona.png';
 
 // Pociones reales (v1.4.0)
 const potionHealImg = new Image();
-potionHealImg.src = 'central.png';
+potionHealImg.src = 'img/central.png';
 
 const potionSpeedImg = new Image();
-potionSpeedImg.src = 'vive100.png';
+potionSpeedImg.src = 'img/vive100.png';
 
 const potionFuryImg = new Image();
-potionFuryImg.src = 'smirnoff.png';
 potionFuryImg.onerror = () => {
     if (!potionFuryImg._retried) {
         potionFuryImg._retried = true;
-        potionFuryImg.src = 'Smirnoff.png';
+        potionFuryImg.src = 'img/smirnoff.png';
     }
 };
+potionFuryImg.src = 'img/Smirnoff.png';
 
 // Helper reutilizable con fallback de mayúsculas/minúsculas para nuevos Power-Ups (v1.7.0)
 function loadImageWithFallback(primarySrc, fallbackSrc) {
@@ -516,7 +516,7 @@ function loadImageWithFallback(primarySrc, fallbackSrc) {
     return img;
 }
 
-const bombaGritoImg = loadImageWithFallback('Bomba_grito.png', 'bomba_grito.png');
-const lolaBlasterImg = loadImageWithFallback('Lola_Blaster.png', 'lola_blaster.png');
-const lolaBlaster2Img = loadImageWithFallback('Lola_Blaster2.png', 'lola_blaster2.png');
-const belceswordImg = loadImageWithFallback('Belcesword.png', 'belcesword.png');
+const bombaGritoImg = loadImageWithFallback('img/Bomba_grito.png', 'img/bomba_grito.png');
+const lolaBlasterImg = loadImageWithFallback('img/Lola_Blaster.png', 'img/lola_blaster.png');
+const lolaBlaster2Img = loadImageWithFallback('img/Lola_Blaster2.png', 'img/lola_blaster2.png');
+const belceswordImg = loadImageWithFallback('img/Belcesword.png', 'img/belcesword.png');
