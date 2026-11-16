@@ -2082,13 +2082,17 @@ class Game {
         const chaserCount = isL2 ? (5 + waveNum * 2) : (3 + waveNum * 2);
         const shooterCount = isL2 ? (3 + waveNum) : (1 + waveNum);
         const tankCount = isL2 ? (1 + Math.floor(waveNum * 0.8)) : 0;
-        const gargoyleCount = isL2 ? (1 + Math.ceil(waveNum * 0.6)) : 0;
+        let gargoyleCount = isL2 ? (1 + Math.ceil(waveNum * 0.6)) : 0;
+        // Nerf v1.8.2: Oleadas 4 y 5 del Nivel 2 limitadas a exactamente 2 murciélagos/gárgolas por ronda
+        if (isL2 && (waveNum === 4 || waveNum === 5)) {
+            gargoyleCount = 2;
+        }
         const villaCount = isL2 ? (1 + Math.floor(waveNum * 0.6)) : 0;
 
-        // Calibración de oro por ronda: entre 3 y 5 bolsas de oro garantizadas en promedio por oleada
+        // Calibración de oro por ronda: entre 3 y 5 bolsas de oro garantizadas en promedio por oleada (+20% en Nivel 2: 4 a 6)
         this.waveTotalEnemies = chaserCount + shooterCount + tankCount + gargoyleCount + villaCount;
         this.waveGoldDropped = 0;
-        this.waveGoldTarget = MathUtils.randInt(3, 5);
+        this.waveGoldTarget = isL2 ? Math.round(MathUtils.randInt(3, 5) * 1.20) : MathUtils.randInt(3, 5);
 
         const spawnPointAwayFromPlayer = () => {
             let sx, sy, tries = 0;
@@ -2176,8 +2180,10 @@ class Game {
             this.pickups.push(new GunPickup(enemy.x, enemy.y));
             this.floatingTexts.push(new FloatingText(enemy.x, enemy.y - 25, '¡DROP DE PISTOLA!', '#38bdf8', 16, true));
         } else {
-            // Probabilidad normal de soltar un orbe de curación o mejora temporal (Espíritu Roguelike)
-            if (Math.random() < 0.32) {
+            // Probabilidad de soltar un orbe de curación o mejora temporal (+20% de probabilidad en Nivel 2: 0.32 * 1.20 = 0.384)
+            const isL2 = this.level === 2;
+            const orbChance = isL2 ? (0.32 * 1.20) : 0.32;
+            if (Math.random() < orbChance) {
                 const roll = Math.random();
                 let type = 'HEAL';
                 if (roll > 0.5 && roll <= 0.78) type = 'FURY';

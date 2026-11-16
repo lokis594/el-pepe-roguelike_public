@@ -58,17 +58,22 @@ class Enemy extends Entity {
         this.shockwaves = [];
     }
 
-    // Probabilidad de drop de oro calibrada según enemigos de la ronda para otorgar entre 3 y 5 de oro por oleada
+    // Probabilidad de drop de oro calibrada según enemigos de la ronda para otorgar entre 3 y 5 de oro por oleada (+20% en Nivel 2: v1.8.2)
     shouldDropGold(game) {
-        const dropped = game.waveGoldDropped || 0;
-        if (dropped >= 5) return false;
-        const target = game.waveGoldTarget || 4;
-        const aliveRemaining = Math.max(1, game.enemies.filter(e => !e.dead).length + 1);
+        const isL2 = (game && game.level === 2) || this.level === 2;
+        const maxDropped = isL2 ? 6 : 5; // +20% tope máximo en Nivel 2
+        const dropped = game ? (game.waveGoldDropped || 0) : 0;
+        if (dropped >= maxDropped) return false;
+        const target = (game && game.waveGoldTarget) ? game.waveGoldTarget : (isL2 ? 5 : 4);
+        const aliveRemaining = game ? Math.max(1, game.enemies.filter(e => !e.dead).length + 1) : 1;
         const needed = target - dropped;
         if (needed > 0 && aliveRemaining <= needed) return true;
-        const totalInWave = Math.max(4, game.waveTotalEnemies || 8);
-        const baseChance = MathUtils.clamp(target / totalInWave, 0.18, 0.75);
-        return Math.random() < (needed > 0 ? Math.max(baseChance, needed / aliveRemaining) : 0.10);
+        const totalInWave = Math.max(4, (game && game.waveTotalEnemies) || 8);
+        const baseChance = MathUtils.clamp(target / totalInWave, 0.18, 0.75) * (isL2 ? 1.20 : 1.0);
+        const overflowChance = isL2 ? (0.10 * 1.20) : 0.10;
+        const rawChance = needed > 0 ? Math.max(baseChance, needed / aliveRemaining) : overflowChance;
+        const finalChance = Math.min(1.0, rawChance * (isL2 ? 1.20 : 1.0));
+        return Math.random() < finalChance;
     }
 
     takeDamage(amount, sourceX, sourceY, kbForce, isCrit, game) {

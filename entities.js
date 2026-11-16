@@ -166,8 +166,9 @@ class Pillar {
             this.dead = true;
             game.spawnParticles(this.x, this.y, 24, '#94a3b8', 190);
             game.addScreenShake(5, 0.18);
-            // 50% de probabilidad de soltar un orbe de Vida o Velocidad (nunca Furia)
-            if (Math.random() < 0.50) {
+            // Probabilidad de soltar un orbe de Vida o Velocidad (+20% en Nivel 2: 0.50 * 1.20 = 0.60)
+            const pillarOrbChance = (game && game.level === 2) ? (0.50 * 1.20) : 0.50;
+            if (Math.random() < pillarOrbChance) {
                 const orbType = Math.random() < 0.50 ? 'HEAL' : 'HASTE';
                 game.pickups.push(new PickupOrb(this.x, this.y, orbType));
             }

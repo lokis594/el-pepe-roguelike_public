@@ -918,6 +918,18 @@ class Player extends Entity {
                 } else {
                     game.addScreenShake(3, 0.08);
                 }
+
+                // Robo de Vida del 12% con Belcesword (v1.8.2)
+                if (hasBelce && this.hp < this.maxHp) {
+                    const healAmount = Math.max(1, Math.round(finalDamage * 0.12));
+                    const prevHp = this.hp;
+                    this.hp = Math.min(this.maxHp, this.hp + healAmount);
+                    const actualHealed = Math.round(this.hp - prevHp);
+                    if (actualHealed > 0 && game) {
+                        game.floatingTexts.push(new FloatingText(this.x, this.y - 24, `+${actualHealed} HP`, '#c084fc', 15, true));
+                        game.spawnParticles(this.x, this.y, 6, '#c084fc', 85, true);
+                    }
+                }
             }
         }
 
