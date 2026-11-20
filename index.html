@@ -32,7 +32,7 @@
             <div id="wave-counter" class="wave-badge">OLEADA: 1 / 5</div>
             <div class="weapon-badge">
                 <span>ARMA: <span id="weapon-name" class="weapon-name-tag">[1] ESPADA</span></span>
-                <span id="weapon-hint" style="color: #94a3b8; font-size: 11px;">[1]</span>
+                <span id="weapon-hint" style="color: #c4b5fd; font-size: 11px;">[1]</span>
             </div>
             <div id="potions-hud" class="potions-badge">
                 <span id="pot-slot-heal" class="pot-chip pot-heal" title="Tecla 4: Poción de Vida (+55% vida faltante)">[4] <img src="img/central.png" alt="Vida" class="pot-hud-img"><b id="pot-count-heal">x0</b></span>
@@ -86,12 +86,12 @@
             <div class="controls-box options-box">
                 <h3>OPCIONES DE CONFIGURACIÓN</h3>
                 <div class="option-item">
-                    <div style="display:flex; justify-content:space-between; margin-bottom:8px; font-size:13px; font-weight:bold; color:#00f5d4;"><span>VOLUMEN GENERAL</span><span id="volume-val-text">80%</span></div>
+                    <div style="display:flex; justify-content:space-between; margin-bottom:8px; font-size:13px; font-weight:bold; color:#a855f7;"><span>VOLUMEN GENERAL</span><span id="volume-val-text">80%</span></div>
                     <input type="range" id="slider-volume" min="0" max="100" value="80">
                 </div>
                 <div class="option-item" style="margin-bottom: 6px;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:13px;"><span style="font-weight:bold; color:#e2e8f0;">MODO BAJO RENDIMIENTO</span><button id="btn-toggle-lowspec" class="btn-action" style="padding: 6px 14px; font-size: 12px; letter-spacing: 1px; border-width: 1px;">DESACTIVADO</button></div>
-                    <div style="font-size: 11px; color: #94a3b8; font-style: italic;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:13px;"><span style="font-weight:bold; color:#f3e8ff;">MODO BAJO RENDIMIENTO</span><button id="btn-toggle-lowspec" class="btn-action" style="padding: 6px 14px; font-size: 12px; letter-spacing: 1px; border-width: 1px;">DESACTIVADO</button></div>
+                    <div style="font-size: 11px; color: #c4b5fd; font-style: italic;">
                         Activar únicamente en caso de experimentar bajos FPS
                     </div>
                 </div>
@@ -102,7 +102,7 @@
     <div id="gameover-screen" class="overlay-screen hidden">
         <div class="title-main danger-title">HAS CAÍDO</div>
         <div class="subtitle">TU ALMA SE DESVANECE EN LA MAZMORRA</div>
-        <div id="gameover-stats" style="color: #94a3b8; margin-bottom: 24px; font-size: 14px;"></div>
+        <div id="gameover-stats" style="color: #c4b5fd; margin-bottom: 24px; font-size: 14px;"></div>
         <div style="display:flex; gap:16px; justify-content:center; flex-wrap:wrap;">
             <button id="btn-retry" class="btn-action" style="border-color:#ef4444; color:#ef4444;">REINTENTAR (R)</button>
             <button id="btn-gameover-menu" class="btn-action btn-back">VOLVER AL MENÚ PRINCIPAL</button>
@@ -113,13 +113,13 @@
         <div id="victory-title" class="title-main victory-title">¡VICTORIA ÉPICA!</div>
         <div id="victory-subtitle" class="subtitle">EL PEPE MAESTRO HA SIDO DERROTADO</div>
         <div class="controls-box" style="text-align: center;">
-            <p style="color: #e2e8f0; line-height: 1.6; font-size: 14px;">
+            <p style="color: #f3e8ff; line-height: 1.6; font-size: 14px;">
                 Has superado las hordas abisales y quebrado el poder arcano del Señor de la Mazmorra.<br><br>
-                <span id="victory-stats" style="color: #00f5d4; font-weight: bold;"></span>
+                <span id="victory-stats" style="color: #c4b5fd; font-weight: bold;"></span>
             </p>
         </div>
         <div style="display:flex; gap:16px; justify-content:center; flex-wrap:wrap;">
-            <button id="btn-next-level" class="btn-action" style="border-color:#00f5d4; color:#00f5d4;">IR AL NIVEL 2 (ESPACIO)</button>
+            <button id="btn-next-level" class="btn-action" style="border-color:#a855f7; color:#a855f7;">IR AL NIVEL 2 (ESPACIO)</button>
             <button id="btn-play-again" class="btn-action" style="border-color:#fbbf24; color:#fbbf24;">JUGAR DE NUEVO (NIVEL 1) (R)</button>
             <button id="btn-victory-menu" class="btn-action btn-back">VOLVER AL MENÚ PRINCIPAL</button>
         </div>
@@ -136,14 +136,14 @@
         </div>
         <div id="pause-options-view" class="menu-view hidden">
             <div class="controls-box options-box" style="margin-bottom: 16px;">
-                <h3 style="color:#00f5d4; border-bottom:1px solid #1e293b; padding-bottom:6px; margin-bottom:14px; font-size:14px;">CONFIGURACIÓN Y CONTROLES</h3>
+                <h3 style="color:#a855f7; border-bottom:1px solid #3b1670; padding-bottom:6px; margin-bottom:14px; font-size:14px;">CONFIGURACIÓN Y CONTROLES</h3>
                 <div class="option-item" style="margin-bottom: 18px;">
-                    <div style="display:flex; justify-content:space-between; margin-bottom:8px; font-size:13px; font-weight:bold; color:#00f5d4;"><span>VOLUMEN GENERAL</span><span id="pause-volume-val-text">80%</span></div>
+                    <div style="display:flex; justify-content:space-between; margin-bottom:8px; font-size:13px; font-weight:bold; color:#a855f7;"><span>VOLUMEN GENERAL</span><span id="pause-volume-val-text">80%</span></div>
                     <input type="range" id="slider-pause-volume" min="0" max="100" value="80">
                 </div>
                 <div class="option-item" style="margin-bottom: 14px;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:13px;"><span style="font-weight:bold; color:#e2e8f0;">MODO BAJO RENDIMIENTO</span><button id="btn-toggle-lowspec-pause" class="btn-action" style="padding: 6px 14px; font-size: 12px; letter-spacing: 1px; border-width: 1px;">DESACTIVADO</button></div>
-                    <div style="font-size: 11px; color: #94a3b8; font-style: italic;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px; font-size:13px;"><span style="font-weight:bold; color:#f3e8ff;">MODO BAJO RENDIMIENTO</span><button id="btn-toggle-lowspec-pause" class="btn-action" style="padding: 6px 14px; font-size: 12px; letter-spacing: 1px; border-width: 1px;">DESACTIVADO</button></div>
+                    <div style="font-size: 11px; color: #c4b5fd; font-style: italic;">
                         Activar únicamente en caso de experimentar bajos FPS
                     </div>
                 </div>
@@ -206,14 +206,14 @@
             </div>
             <div class="shop-card powerup-card-lola">
                 <img src="img/Lola_Blaster.png" onerror="if(!this._retried){this._retried=true;this.src='img/lola_blaster.png';}" alt="Lola Blaster" class="powerup-img">
-                <div class="shop-card-name" style="color:#00f5d4;">LOLA BLASTER</div>
+                <div class="shop-card-name" style="color:#a855f7;">LOLA BLASTER</div>
                 <div class="shop-card-desc">Reemplaza la pistola (<b>+52% daño</b>). Mantén disparar <b>1.5s</b>: crece progresivamente y dispara un <b>Orbe de Energía</b> gigante (+45% daño) que traspasa enemigos con daño AoE.</div>
-                <button id="btn-pick-lola" class="btn-action btn-shop-buy" style="border-color:#00f5d4; color:#00f5d4;">ELEGIR LOLA BLASTER</button>
+                <button id="btn-pick-lola" class="btn-action btn-shop-buy" style="border-color:#a855f7; color:#a855f7;">ELEGIR LOLA BLASTER</button>
             </div>
             <div class="shop-card powerup-card-belce">
                 <img src="img/Belcesword.png" onerror="if(!this._retried){this._retried=true;this.src='img/belcesword.png';}" alt="Belcesword" class="powerup-img">
                 <div class="shop-card-name" style="color:#c084fc;">BELCESWORD</div>
-                <div class="shop-card-desc">Reemplaza la espada (<b>+10% daño</b>, +50% empuje, -10% vel. ataque). <b>Cada 3er ataque</b> es gigante e inflige <b>+30% de daño</b>. Incluye <b>12% de Robo de Vida</b> al golpear.</div>
+                <div class="shop-card-desc">Reemplaza la espada (<b>+10% daño</b>, +50% empuje, -10% vel. ataque). Inflige <b>+30% de daño</b> en <b>cada 3er ataque</b>. Incluye <b>5% de Robo de Vida</b> al golpear.</div>
                 <button id="btn-pick-belce" class="btn-action btn-shop-buy" style="border-color:#c084fc; color:#c084fc;">ELEGIR BELCESWORD</button>
             </div>
         </div>
@@ -230,17 +230,17 @@
     </div>
     <div id="patch-notes-modal" class="overlay-screen hidden" style="z-index: 85;">
         <div class="patch-notes-box">
-            <div class="patch-notes-header">📋 NOTAS DEL PARCHE - VERSIÓN 1.8.2</div>
+            <div class="patch-notes-header">📋 NOTAS DEL PARCHE - VERSIÓN 1.8.3</div>
             <div class="patch-notes-scroll">
                 <div class="patch-version-block">
-                    <div class="patch-version-title">Versión 1.8.2 (Actual)</div>
+                    <div class="patch-version-title">Versión 1.8.3 (Actual)</div>
                     <ul class="patch-list">
-                        <li><b>Mejora de Power-Up:</b>
-                            <br>• <b>Belcesword:</b> Ahora cuenta con un <b>12% de Robo de Vida</b> en todos sus ataques (tanto tajos normales como el 3er tajo potenciado).
+                        <li><b>Balance de Power-Ups (Belcesword):</b>
+                            <br>• <b>Robo de Vida reducido:</b> Bajado de 12% a 5% por ataque.
+                            <br>• <b>Ajuste del 3er Ataque:</b> Se eliminó el aumento de rango del 3er tajo (ahora mantiene el alcance normal conservando su +30% de daño extra).
                         </li>
-                        <li><b>Balance y Recompensas del Nivel 2:</b>
-                            <br>• <b>Ajuste en Oleadas 4 y 5:</b> Se redujo el número de murciélagos/gárgolas que aparecen en las oleadas 4 y 5 del Nivel 2 a <b>solo 2 por ronda</b>.
-                            <br>• <b>Más Botín en Nivel 2:</b> Aumentado en un <b>+20% el porcentaje de aparición de Orbes y Oro</b> al derrotar enemigos durante las 5 oleadas del Nivel 2.
+                        <li><b>Rediseño Visual:</b>
+                            <br>• <b>Nueva Estética Oscura:</b> Menús, paneles y HUD rediseñados en una paleta unificada de morado oscuro y negro.
                         </li>
                     </ul>
                 </div>
@@ -255,7 +255,7 @@
             <input type="password" id="admin-password-input" class="admin-input" placeholder="Contraseña..." autocomplete="off">
             <div id="admin-password-error" class="admin-error hidden">Contraseña incorrecta</div>
             <div class="confirm-warning-actions" style="margin-top: 12px;">
-                <button id="btn-admin-pass-enter" class="btn-action" style="border-color:#00f5d4; color:#00f5d4;">ENTRAR</button>
+                <button id="btn-admin-pass-enter" class="btn-action" style="border-color:#a855f7; color:#a855f7;">ENTRAR</button>
                 <button id="btn-admin-pass-cancel" class="btn-action btn-back">CANCELAR</button>
             </div>
         </div>
@@ -310,7 +310,7 @@
 </div>
 <button id="btn-admin-floating" class="btn-admin-floating hidden" title="Panel Modo Admin">🛠️ ADMIN</button>
 <button id="btn-patch-notes" class="btn-patch-notes">📋 NOTAS DEL PARCHE</button>
-<div id="version-tag">version 1.8.2</div>
+<div id="version-tag">version 1.8.3</div>
 <script src="audio.js"></script>
 <script src="entities.js"></script>
 <script src="player.js"></script>

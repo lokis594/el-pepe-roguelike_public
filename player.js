@@ -887,8 +887,8 @@ class Player extends Entity {
     checkSwordCollisions(game) {
         const hasBelce = this.hasPowerUp('BELCESWORD');
         const isThird = hasBelce && this.activeSwingBelceThird;
-        const reach = isThird ? (this.swordReach * 1.45) : this.swordReach;
-        const halfArc = (isThird ? Math.min(Math.PI * 1.65, this.swordArc * 1.45) : this.swordArc) * 0.5;
+        const reach = this.swordReach;
+        const halfArc = this.swordArc * 0.5;
         const isCrit = Math.random() < 0.22;
         const belceMult = hasBelce ? (isThird ? 1.10 * 1.30 : 1.10) : 1.0;
         const kbBoost = hasBelce ? 1.50 : 1.0;
@@ -919,15 +919,16 @@ class Player extends Entity {
                     game.addScreenShake(3, 0.08);
                 }
 
-                // Robo de Vida del 12% con Belcesword (v1.8.2)
+                // Robo de Vida del 5% con Belcesword (v1.8.3)
                 if (hasBelce && this.hp < this.maxHp) {
-                    const healAmount = Math.max(1, Math.round(finalDamage * 0.12));
+                    const healAmount = finalDamage * 0.05;
                     const prevHp = this.hp;
                     this.hp = Math.min(this.maxHp, this.hp + healAmount);
-                    const actualHealed = Math.round(this.hp - prevHp);
+                    const actualHealed = this.hp - prevHp;
                     if (actualHealed > 0 && game) {
-                        game.floatingTexts.push(new FloatingText(this.x, this.y - 24, `+${actualHealed} HP`, '#c084fc', 15, true));
-                        game.spawnParticles(this.x, this.y, 6, '#c084fc', 85, true);
+                        const displayHeal = actualHealed >= 1 ? Math.round(actualHealed) : actualHealed.toFixed(1);
+                        game.floatingTexts.push(new FloatingText(this.x, this.y - 24, `+${displayHeal} HP`, '#a855f7', 14, true));
+                        game.spawnParticles(this.x, this.y, 6, '#a855f7', 85, true);
                     }
                 }
             }
@@ -981,15 +982,15 @@ class Player extends Entity {
             ctx.restore();
         }
 
-        // 2. Dibujar estelas de corte (Slash Trails de 120° / Belcesword morada gigante en 3er golpe)
+        // 2. Dibujar estelas de corte (Slash Trails de 120° / Belcesword morada intensa en 3er golpe)
         for (const trail of this.slashTrails) {
             ctx.save();
             ctx.translate(trail.x, trail.y);
             const alpha = (trail.life / trail.maxLife) * (trail.belceThird ? 0.85 : 0.65);
             ctx.globalAlpha = alpha;
 
-            const arc = trail.belceThird ? Math.min(Math.PI * 1.65, this.swordArc * 1.45) : this.swordArc;
-            const reach = trail.belceThird ? this.swordReach * 1.45 : this.swordReach;
+            const arc = this.swordArc;
+            const reach = this.swordReach;
             const startAngle = trail.angle - arc * 0.5;
             const endAngle = trail.angle + arc * 0.5;
             const color = trail.belce ? (trail.belceThird ? '#c084fc' : '#7e22ce') : (trail.boosted ? '#fbbf24' : '#00f5d4');
@@ -1355,7 +1356,7 @@ class Player extends Entity {
             ctx.rotate(weaponAngle);
             if (this.hasPowerUp('BELCESWORD') && typeof belceswordImg !== 'undefined' && belceswordImg.complete && belceswordImg.naturalWidth > 0) {
                 const isThird = this.isAttacking && this.activeSwingBelceThird;
-                const sScale = isThird ? 1.35 : 1.0;
+                const sScale = 1.0;
                 ctx.save();
                 ctx.scale(sScale, sScale);
                 ctx.shadowBlur = isThird ? 20 : 10;
@@ -1424,11 +1425,12 @@ class Player extends Entity {
         ctx.fillRect(barX, barY, barW * hpRatio, barH);
 
         // Texto pequeño HP / MAX_HP
+        const displayHp = this.hp > 0 ? Math.max(1, Math.round(this.hp)) : 0;
         ctx.font = '900 8.5px "Courier New", monospace';
         ctx.fillStyle = '#ffffff';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'bottom';
-        ctx.fillText(`${this.hp}/${this.maxHp}`, this.x, barY - 3);
+        ctx.fillText(`${displayHp}/${this.maxHp}`, this.x, barY - 3);
 
         // 6. Indicador visual de Recarga (Pistola 0.5s / Rifle de Asalto 0.8s) sobre el jugador
         const showRifleRel = this.isReloadingRifle && (this.currentWeapon === 'RIFLE' || !this.isReloadingPistol);

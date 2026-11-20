@@ -1603,10 +1603,10 @@ class Game {
             for (const btn of lowSpecButtons) {
                 if (!btn) continue;
                 btn.textContent = on ? 'ACTIVADO' : 'DESACTIVADO';
-                btn.style.borderColor = on ? '#fbbf24' : '#94a3b8';
-                btn.style.color = on ? '#fbbf24' : '#94a3b8';
-                btn.style.background = on ? 'rgba(251, 191, 36, 0.2)' : 'transparent';
-                btn.style.boxShadow = on ? '0 0 15px rgba(251, 191, 36, 0.4)' : 'none';
+                btn.style.borderColor = on ? '#fbbf24' : '#6d28d9';
+                btn.style.color = on ? '#fbbf24' : '#c4b5fd';
+                btn.style.background = on ? 'rgba(251, 191, 36, 0.16)' : 'rgba(18, 10, 31, 0.72)';
+                btn.style.boxShadow = on ? '0 0 14px rgba(251, 191, 36, 0.35)' : 'none';
             }
         };
         this.updateLowSpecButtons = updateLowSpecButtons;
@@ -1718,7 +1718,7 @@ class Game {
         const { x, y, w, h } = this.arena;
 
         // 1. Fondo exterior abisal oscuro
-        fctx.fillStyle = '#06070a';
+        fctx.fillStyle = '#06040a';
         fctx.fillRect(0, 0, this.worldW, this.worldH);
 
         // 2. Muro perimetral exterior de Deepslate (estilo Minecraft Stronghold)
@@ -2083,7 +2083,7 @@ class Game {
         const shooterCount = isL2 ? (3 + waveNum) : (1 + waveNum);
         const tankCount = isL2 ? (1 + Math.floor(waveNum * 0.8)) : 0;
         let gargoyleCount = isL2 ? (1 + Math.ceil(waveNum * 0.6)) : 0;
-        // Nerf v1.8.2: Oleadas 4 y 5 del Nivel 2 limitadas a exactamente 2 murciélagos/gárgolas por ronda
+        // Balance de oleadas: Oleadas 4 y 5 del Nivel 2 limitadas a exactamente 2 murciélagos/gárgolas por ronda
         if (isL2 && (waveNum === 4 || waveNum === 5)) {
             gargoyleCount = 2;
         }
@@ -2147,7 +2147,7 @@ class Game {
             this.spawnParticles(pt.x, pt.y, 14, '#39ff14', 135, true);
         }
 
-        this.floatingTexts.push(new FloatingText(this.camera.x + this.width * 0.5, this.camera.y + this.height * 0.3, `¡OLEADA ${waveNum}!`, '#00f5d4', 24, true));
+        this.floatingTexts.push(new FloatingText(this.camera.x + this.width * 0.5, this.camera.y + this.height * 0.3, `¡OLEADA ${waveNum}!`, '#c084fc', 24, true));
     }
 
     onEnemyKilled(enemy) {
@@ -2209,7 +2209,7 @@ class Game {
         this.dancerPos = { x: refX + 145, y: refY - 15 };
 
         this.spawnParticles(this.shopPos.x, this.shopPos.y, 28, '#ffd700', 160, true);
-        this.spawnParticles(this.dancerPos.x, this.dancerPos.y, 28, '#00f0ff', 160, true);
+        this.spawnParticles(this.dancerPos.x, this.dancerPos.y, 28, '#a855f7', 160, true);
         this.floatingTexts.push(new FloatingText(refX, refY - 75, '¡TIENDA ABIERTA! PREPÁRATE ANTES DEL JEFE', '#ffd700', 20, true));
         soundManager.playPickup();
     }
@@ -2244,7 +2244,7 @@ class Game {
         this.waveCooldown = 0;
         this.waveIntermission = false;
         if (this.waveGatePos) {
-            this.spawnParticles(this.waveGatePos.x, this.waveGatePos.y, 26, '#00f5d4', 170, true);
+            this.spawnParticles(this.waveGatePos.x, this.waveGatePos.y, 26, '#a855f7', 170, true);
         }
         if (this.currentWave < this.maxWaves) {
             this.currentWave++;
@@ -2456,7 +2456,9 @@ class Game {
             if (runId !== this.runId || this.state === 'GAMEOVER') return; // ignorar si se reinició la partida
             this.state = 'VICTORY';
             this.configureVictoryScreen();
-            this.ui.victoryStats.textContent = `Esbirros Abatidos: ${this.enemiesKilledCount} | Salud Restante: ${this.player.hp}/${this.player.maxHp}`;
+            const displayHp = this.player.hp > 0 ? Math.max(1, Math.round(this.player.hp)) : 0;
+            const displayMaxHp = Math.max(1, Math.round(this.player.maxHp));
+            this.ui.victoryStats.textContent = `Esbirros Abatidos: ${this.enemiesKilledCount} | Salud Restante: ${displayHp}/${displayMaxHp}`;
             this.ui.victoryScreen.classList.remove('hidden');
         }, 900);
     }
@@ -2518,7 +2520,7 @@ class Game {
             BELCESWORD: '¡POWER-UP: BELCESWORD!'
         };
         if (this.player) {
-            this.floatingTexts.push(new FloatingText(this.player.x, this.player.y - 102, labelMap[choice] || '¡POWER-UP EQUIPADO!', '#00f5d4', 20, true));
+            this.floatingTexts.push(new FloatingText(this.player.x, this.player.y - 102, labelMap[choice] || '¡POWER-UP EQUIPADO!', '#a855f7', 20, true));
         }
         soundManager.playPickup();
     }
@@ -2874,7 +2876,9 @@ class Game {
         const hpPct = MathUtils.clamp((this.player.hp / this.player.maxHp) * 100, 0, 100);
         if (this.ui.levelBadge) this.ui.levelBadge.style.display = (this.level === 2 && this.player.powered) ? 'block' : 'none';
         this.ui.hpBar.style.width = `${hpPct}%`;
-        this.ui.hpText.textContent = `${this.player.hp} / ${this.player.maxHp}`;
+        const displayHp = this.player.hp > 0 ? Math.max(1, Math.round(this.player.hp)) : 0;
+        const displayMaxHp = Math.max(1, Math.round(this.player.maxHp));
+        this.ui.hpText.textContent = `${displayHp} / ${displayMaxHp}`;
         if (this.ui.goldText) this.ui.goldText.textContent = `${this.player.gold || 0}`;
 
         // Actualizar inventario de las 3 Pociones en el HUD ([4], [5], [6])
@@ -2927,7 +2931,7 @@ class Game {
                 this.ui.waveCounter.style.color = '#ffd700';
             } else {
                 this.ui.waveCounter.textContent = `OLEADA: ${this.currentWave} / ${this.maxWaves}`;
-                this.ui.waveCounter.style.color = '#00f5d4';
+                this.ui.waveCounter.style.color = '#c4b5fd';
             }
         }
 
@@ -2951,18 +2955,19 @@ class Game {
                 } else {
                     this.ui.weaponName.textContent = `[2] ${gunBaseName} (${this.player.infiniteItems ? '∞' : this.player.pistolAmmo + '/' + this.player.pistolMaxAmmo})`;
                 }
-                this.ui.weaponName.style.color = hasLola ? '#00f5d4' : '#38bdf8';
+                this.ui.weaponName.style.color = hasLola ? '#a855f7' : '#c084fc';
             } else {
                 this.ui.weaponName.textContent = `[1] ${swordBaseName}`;
-                this.ui.weaponName.style.color = hasBelce ? '#c084fc' : '#00f5d4';
+                this.ui.weaponName.style.color = hasBelce ? '#a855f7' : '#c4b5fd';
             }
             if (this.ui.weaponHint) {
                 const cw = this.player.currentWeapon;
                 const slot = (n, label, owned, key) => {
                     const active = cw === key;
-                    const color = !owned ? '#475569' : (active ? '#00f5d4' : '#94a3b8');
-                    const border = active ? '1px solid #00f5d4' : '1px solid #334155';
-                    return `<span style="display:inline-block;margin-right:4px;padding:1px 5px;border:${border};color:${color};opacity:${owned ? 1 : 0.5};text-shadow:2px 2px 4px rgba(0,0,0,0.95);background:rgba(15,23,42,0.45);border-radius:2px;">${n}:${label}${owned ? '' : ' 🔒'}</span>`;
+                    const color = !owned ? '#5b467a' : (active ? '#f3e8ff' : '#c4b5fd');
+                    const border = active ? '1px solid #9333ea' : '1px solid #4c1d95';
+                    const bg = active ? 'rgba(8, 5, 13, 0.72)' : 'rgba(8, 5, 13, 0.42)';
+                    return `<span style="display:inline-block;margin-right:4px;padding:1px 5px;border:${border};color:${color};opacity:${owned ? 1 : 0.75};text-shadow:2px 2px 4px rgba(0,0,0,0.95);background:${bg};border-radius:2px;">${n}:${label}${owned ? '' : ' 🔒'}</span>`;
                 };
                 const pistolLabel = this.player.hasGun
                     ? (this.player.isReloadingPistol ? `${gunBaseName} (RECARGANDO...)` : `${gunBaseName} (${this.player.infiniteItems ? '∞' : this.player.pistolAmmo + '/' + this.player.pistolMaxAmmo})`)
@@ -2999,7 +3004,7 @@ class Game {
                 this.ui.bossTitle.style.color = '#fbbf24';
             } else {
                 this.ui.bossTitle.textContent = this.level === 2 ? 'RISÍN PEPÍN - EL SEÑOR DE LA RISA' : 'EL PEPE MAESTRO - SEÑOR DE LA MAZMORRA';
-                this.ui.bossTitle.style.color = '#fca5a5';
+                this.ui.bossTitle.style.color = '#e9d5ff';
             }
         }
     }
@@ -3011,7 +3016,7 @@ class Game {
         const zoom = this.cameraZoom || 1.0;
         const viewW = this.width / zoom;
         const viewH = this.height / zoom;
-        ctx.fillStyle = '#06070a';
+        ctx.fillStyle = '#06040a';
         ctx.fillRect(this.camera.x - 200, this.camera.y - 200, viewW + 400, viewH + 400);
 
         if (this.dungeonFloorCanvas) {
@@ -3173,7 +3178,7 @@ class Game {
         ctx.fillStyle = '#10121a';
         ctx.strokeStyle = '#00f0ff';
         ctx.shadowColor = '#00f0ff';
-        ctx.shadowBlur = 15;
+        ctx.shadowBlur = this.lowSpecMode ? 0 : 15;
         ctx.lineWidth = 3.5;
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
@@ -3283,7 +3288,7 @@ class Game {
             ctx.globalAlpha = alpha;
             ctx.fillStyle = i % 2 === 0 ? '#00f0ff' : '#f43f5e';
             ctx.shadowColor = ctx.fillStyle;
-            ctx.shadowBlur = 10;
+            ctx.shadowBlur = this.lowSpecMode ? 0 : 10;
             ctx.font = '900 18px "Courier New", monospace';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
@@ -3307,27 +3312,31 @@ class Game {
         const bw = 560;
         const bh = 68;
 
-        ctx.fillStyle = 'rgba(8, 12, 22, 0.88)';
-        ctx.strokeStyle = '#00f0ff';
+        ctx.fillStyle = 'rgba(8, 5, 13, 0.92)';
+        ctx.strokeStyle = '#9333ea';
         ctx.lineWidth = 2.5;
-        ctx.shadowColor = '#00f0ff';
-        ctx.shadowBlur = 18;
+        ctx.shadowColor = '#a855f7';
+        ctx.shadowBlur = this.lowSpecMode ? 0 : 18;
         ctx.fillRect(cx - bw * 0.5, bannerY - bh * 0.5, bw, bh);
         ctx.strokeRect(cx - bw * 0.5, bannerY - bh * 0.5, bw, bh);
 
         ctx.font = '900 23px "Courier New", monospace';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillStyle = '#00f0ff';
-        ctx.shadowColor = '#00f0ff';
-        ctx.shadowBlur = 12;
+        ctx.strokeStyle = '#08050d';
+        ctx.lineWidth = 4;
+        ctx.shadowColor = '#a855f7';
+        ctx.shadowBlur = this.lowSpecMode ? 0 : 12;
+        ctx.strokeText('¡RONDA COMPLETADA!', cx, bannerY - 13);
+        ctx.fillStyle = '#f3e8ff';
         ctx.fillText('¡RONDA COMPLETADA!', cx, bannerY - 13);
 
         const timerText = `SIGUIENTE RONDA EN: ${Math.max(0, this.waveCooldown).toFixed(1)}s`;
         ctx.font = '900 16px "Courier New", monospace';
-        ctx.fillStyle = '#fbbf24';
         ctx.shadowColor = '#fbbf24';
-        ctx.shadowBlur = 8;
+        ctx.shadowBlur = this.lowSpecMode ? 0 : 8;
+        ctx.strokeText(timerText, cx, bannerY + 15);
+        ctx.fillStyle = '#fbbf24';
         ctx.fillText(timerText, cx, bannerY + 15);
         ctx.restore();
 
@@ -3347,34 +3356,37 @@ class Game {
 
         // Aura mágica en el suelo frente a la puerta
         const floorGlow = ctx.createRadialGradient(0, 10, 6, 0, 10, 74);
-        floorGlow.addColorStop(0, near ? 'rgba(0, 245, 212, 0.42)' : 'rgba(56, 189, 248, 0.24)');
+        floorGlow.addColorStop(0, near ? 'rgba(168, 85, 247, 0.44)' : 'rgba(109, 40, 217, 0.28)');
         floorGlow.addColorStop(1, 'rgba(0, 0, 0, 0)');
         ctx.fillStyle = floorGlow;
         ctx.beginPath();
         ctx.ellipse(0, 12, 74, 34, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Arco de piedra de la Puerta de Oleada
-        ctx.fillStyle = '#334155';
-        ctx.strokeStyle = near ? '#00f5d4' : '#64748b';
+        // Arco de piedra obsidiana de la Puerta de Oleada
+        ctx.fillStyle = '#120a1f';
+        ctx.strokeStyle = near ? '#a855f7' : '#6d28d9';
         ctx.lineWidth = near ? 3 : 2;
+        ctx.shadowColor = near ? '#a855f7' : '#6d28d9';
+        ctx.shadowBlur = this.lowSpecMode ? 0 : (near ? 14 : 6);
         ctx.beginPath();
         ctx.roundRect(-34, -34, 68, 56, [24, 24, 4, 4]);
         ctx.fill();
         ctx.stroke();
+        ctx.shadowBlur = 0;
 
-        // Portal energético interior
+        // Portal energético interior morado oscuro
         const portalGrad = ctx.createLinearGradient(0, -24, 0, 18);
-        portalGrad.addColorStop(0, `rgba(0, 245, 212, ${0.85 * pulse})`);
-        portalGrad.addColorStop(0.55, `rgba(16, 185, 129, ${0.75 * pulse})`);
-        portalGrad.addColorStop(1, 'rgba(6, 78, 59, 0.9)');
+        portalGrad.addColorStop(0, `rgba(168, 85, 247, ${0.88 * pulse})`);
+        portalGrad.addColorStop(0.55, `rgba(109, 40, 217, ${0.80 * pulse})`);
+        portalGrad.addColorStop(1, 'rgba(18, 10, 31, 0.94)');
         ctx.fillStyle = portalGrad;
         ctx.beginPath();
         ctx.roundRect(-22, -24, 44, 42, [16, 16, 2, 2]);
         ctx.fill();
 
         // Símbolo de avance rápido (>>) dentro del portal
-        ctx.fillStyle = '#ecfeff';
+        ctx.fillStyle = '#f3e8ff';
         ctx.font = 'bold 16px "Courier New", monospace';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -3382,11 +3394,11 @@ class Game {
 
         // Etiqueta superior fija
         ctx.font = 'bold 11px "Courier New", monospace';
-        ctx.strokeStyle = '#090d16';
+        ctx.strokeStyle = '#08050d';
         ctx.lineWidth = 3;
         const headerLabel = `PUERTA DE OLEADA (${this.currentWave + 1}/${this.maxWaves})`;
         ctx.strokeText(headerLabel, 0, -45);
-        ctx.fillStyle = '#67e8f9';
+        ctx.fillStyle = '#e9d5ff';
         ctx.fillText(headerLabel, 0, -45);
 
         // Prompt interactivo
@@ -3395,7 +3407,7 @@ class Game {
             : 'ACÉRCATE PARA ADELANTAR OLEADA';
         ctx.font = near ? 'bold 12px "Courier New", monospace' : 'bold 10px "Courier New", monospace';
         ctx.strokeText(promptText, 0, 36);
-        ctx.fillStyle = near ? '#fbbf24' : '#94a3b8';
+        ctx.fillStyle = near ? '#fbbf24' : '#c4b5fd';
         ctx.fillText(promptText, 0, 36);
 
         ctx.restore();
@@ -3413,37 +3425,40 @@ class Game {
 
         // Aura dorada/arcana sobre el suelo
         const glow = ctx.createRadialGradient(0, 14, 10, 0, 14, 98);
-        glow.addColorStop(0, near ? 'rgba(255, 215, 0, 0.48)' : 'rgba(168, 85, 247, 0.32)');
-        glow.addColorStop(0.6, 'rgba(0, 245, 212, 0.16)');
+        glow.addColorStop(0, near ? 'rgba(255, 215, 0, 0.48)' : 'rgba(168, 85, 247, 0.36)');
+        glow.addColorStop(0.6, 'rgba(109, 40, 217, 0.22)');
         glow.addColorStop(1, 'rgba(0, 0, 0, 0)');
         ctx.fillStyle = glow;
         ctx.beginPath();
         ctx.ellipse(0, 16, 98, 44, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Pilares y arco místico dorado
-        ctx.fillStyle = '#1e1b4b';
-        ctx.strokeStyle = near ? '#ffd700' : '#a855f7';
+        // Pilares y arco místico dorado / obsidiana
+        ctx.fillStyle = '#120a1f';
+        ctx.strokeStyle = near ? '#ffd700' : '#9333ea';
         ctx.lineWidth = near ? 3.5 : 2.5;
+        ctx.shadowColor = near ? '#ffd700' : '#a855f7';
+        ctx.shadowBlur = this.lowSpecMode ? 0 : (near ? 14 : 8);
         ctx.beginPath();
         ctx.roundRect(-44, -52, 88, 76, [36, 36, 6, 6]);
         ctx.fill();
         ctx.stroke();
+        ctx.shadowBlur = 0;
 
         // Núcleo de energía cósmica
         const portalGrad = ctx.createLinearGradient(0, -40, 0, 20);
         portalGrad.addColorStop(0, `rgba(251, 191, 36, ${0.9 * pulse})`);
-        portalGrad.addColorStop(0.5, `rgba(168, 85, 247, ${0.85 * pulse})`);
-        portalGrad.addColorStop(1, 'rgba(0, 245, 212, 0.78)');
+        portalGrad.addColorStop(0.5, `rgba(168, 85, 247, ${0.88 * pulse})`);
+        portalGrad.addColorStop(1, 'rgba(76, 29, 149, 0.92)');
         ctx.fillStyle = portalGrad;
         ctx.beginPath();
         ctx.roundRect(-30, -38, 60, 58, [26, 26, 4, 4]);
         ctx.fill();
 
         // Símbolo estelar central
-        ctx.fillStyle = '#ffffff';
+        ctx.fillStyle = '#f3e8ff';
         ctx.shadowColor = '#ffd700';
-        ctx.shadowBlur = 14;
+        ctx.shadowBlur = this.lowSpecMode ? 0 : 14;
         ctx.font = 'bold 22px "Courier New", monospace';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
@@ -3452,7 +3467,7 @@ class Game {
         // Letrero visible siempre
         ctx.shadowBlur = 0;
         ctx.font = '900 13px "Courier New", monospace';
-        ctx.strokeStyle = '#090d16';
+        ctx.strokeStyle = '#08050d';
         ctx.lineWidth = 3.5;
         const title = 'PUERTA DE PODER - ACÉRCATE [E / TOCAR]';
         ctx.strokeText(title, 0, -68);
@@ -3463,7 +3478,7 @@ class Game {
             const sub = '[E / TOCAR AQUÍ]: ELEGIR POWER-UP PARA NIVEL 2';
             ctx.font = '900 12px "Courier New", monospace';
             ctx.strokeText(sub, 0, 40);
-            ctx.fillStyle = '#00f5d4';
+            ctx.fillStyle = '#e9d5ff';
             ctx.fillText(sub, 0, 40);
         }
 
@@ -3543,29 +3558,35 @@ class Game {
 
         // Letrero flotante: "TIENDA DE POCIONES"
         const bob = Math.sin(this.globalTime * 4) * 3;
-        ctx.fillStyle = 'rgba(15, 23, 42, 0.92)';
-        ctx.strokeStyle = nearShop ? '#00f5d4' : '#ffd700';
+        ctx.fillStyle = 'rgba(8, 5, 13, 0.92)';
+        ctx.strokeStyle = nearShop ? '#a855f7' : '#ffd700';
         ctx.lineWidth = 2;
-        ctx.shadowColor = nearShop ? '#00f5d4' : '#ffd700';
-        ctx.shadowBlur = 12;
+        ctx.shadowColor = nearShop ? '#a855f7' : '#ffd700';
+        ctx.shadowBlur = this.lowSpecMode ? 0 : 12;
         ctx.fillRect(-82, -80 + bob, 164, 24);
         ctx.strokeRect(-82, -80 + bob, 164, 24);
 
         ctx.shadowBlur = 0;
         ctx.font = '900 12px "Courier New", monospace';
-        ctx.fillStyle = '#ffd700';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
+        ctx.strokeStyle = '#08050d';
+        ctx.lineWidth = 2.5;
+        ctx.strokeText('TIENDA DE POCIONES', 0, -68 + bob);
+        ctx.fillStyle = '#ffd700';
         ctx.fillText('TIENDA DE POCIONES', 0, -68 + bob);
 
         if (nearShop) {
-            ctx.fillStyle = 'rgba(6, 10, 20, 0.92)';
-            ctx.strokeStyle = '#00f5d4';
+            ctx.fillStyle = 'rgba(8, 5, 13, 0.92)';
+            ctx.strokeStyle = '#a855f7';
             ctx.lineWidth = 1.5;
             ctx.fillRect(-92, 36, 184, 20);
             ctx.strokeRect(-92, 36, 184, 20);
-            ctx.fillStyle = '#00f5d4';
             ctx.font = '900 10.5px "Courier New", monospace';
+            ctx.strokeStyle = '#08050d';
+            ctx.lineWidth = 2;
+            ctx.strokeText('[T / E / CLICK]: ABRIR TIENDA', 0, 46);
+            ctx.fillStyle = '#f3e8ff';
             ctx.fillText('[T / E / CLICK]: ABRIR TIENDA', 0, 46);
         }
         ctx.restore();
@@ -3579,34 +3600,40 @@ class Game {
             const pw = 268;
             const ph = 28;
             const py = dy - 74 + dBob;
-            ctx.fillStyle = 'rgba(8, 15, 30, 0.95)';
-            ctx.strokeStyle = '#00f0ff';
+            ctx.fillStyle = 'rgba(8, 5, 13, 0.92)';
+            ctx.strokeStyle = '#a855f7';
             ctx.lineWidth = 2.2;
-            ctx.shadowColor = '#00f0ff';
-            ctx.shadowBlur = 16;
+            ctx.shadowColor = '#a855f7';
+            ctx.shadowBlur = this.lowSpecMode ? 0 : 16;
             ctx.fillRect(dx - pw * 0.5, py, pw, ph);
             ctx.strokeRect(dx - pw * 0.5, py, pw, ph);
 
             ctx.shadowBlur = 0;
-            ctx.fillStyle = '#00f0ff';
             ctx.font = '900 11.5px "Courier New", monospace';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
+            ctx.strokeStyle = '#08050d';
+            ctx.lineWidth = 2.5;
+            ctx.strokeText('[E / TOCAR AQUÍ]: ¡IR A POR EL PEPE!', dx, py + ph * 0.5);
+            ctx.fillStyle = '#f3e8ff';
             ctx.fillText('[E / TOCAR AQUÍ]: ¡IR A POR EL PEPE!', dx, py + ph * 0.5);
         } else {
             const pw = 210;
             const ph = 22;
             const py = dy - 70 + dBob;
-            ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
-            ctx.strokeStyle = '#38bdf8';
+            ctx.fillStyle = 'rgba(8, 5, 13, 0.90)';
+            ctx.strokeStyle = '#6d28d9';
             ctx.lineWidth = 1.5;
             ctx.fillRect(dx - pw * 0.5, py, pw, ph);
             ctx.strokeRect(dx - pw * 0.5, py, pw, ph);
 
-            ctx.fillStyle = '#38bdf8';
             ctx.font = '900 10.5px "Courier New", monospace';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
+            ctx.strokeStyle = '#08050d';
+            ctx.lineWidth = 2;
+            ctx.strokeText('ACÉRCATE PARA INVOCAR AL JEFE', dx, py + ph * 0.5);
+            ctx.fillStyle = '#c4b5fd';
             ctx.fillText('ACÉRCATE PARA INVOCAR AL JEFE', dx, py + ph * 0.5);
         }
         ctx.restore();
@@ -3620,22 +3647,27 @@ class Game {
         const bw = 610;
         const bh = 54;
 
-        ctx.fillStyle = 'rgba(8, 12, 22, 0.88)';
-        ctx.strokeStyle = '#ffd700';
+        ctx.fillStyle = 'rgba(8, 5, 13, 0.92)';
+        ctx.strokeStyle = '#9333ea';
         ctx.lineWidth = 2;
-        ctx.shadowColor = '#ffd700';
-        ctx.shadowBlur = 14;
+        ctx.shadowColor = '#a855f7';
+        ctx.shadowBlur = this.lowSpecMode ? 0 : 14;
         ctx.fillRect(camCx - bw * 0.5, bannerY - bh * 0.5, bw, bh);
         ctx.strokeRect(camCx - bw * 0.5, bannerY - bh * 0.5, bw, bh);
 
         ctx.shadowBlur = 0;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
+        ctx.strokeStyle = '#08050d';
+        ctx.lineWidth = 3;
         ctx.font = '900 17px "Courier New", monospace';
+        ctx.strokeText('¡5 RONDAS COMPLETADAS! SALA DE PREPARACIÓN', camCx, bannerY - 10);
         ctx.fillStyle = '#ffd700';
         ctx.fillText('¡5 RONDAS COMPLETADAS! SALA DE PREPARACIÓN', camCx, bannerY - 10);
         ctx.font = '900 12px "Courier New", monospace';
-        ctx.fillStyle = '#00f0ff';
+        ctx.lineWidth = 2.5;
+        ctx.strokeText('COMPRA POCIONES EN LA TIENDA Y ACÉRCATE AL BAILARÍN PARA PELEAR', camCx, bannerY + 11);
+        ctx.fillStyle = '#e9d5ff';
         ctx.fillText('COMPRA POCIONES EN LA TIENDA Y ACÉRCATE AL BAILARÍN PARA PELEAR', camCx, bannerY + 11);
         ctx.restore();
     }
@@ -4170,7 +4202,7 @@ class Game {
 
                 ctx.fillStyle = titleColor;
                 ctx.font = '900 36px "Courier New", monospace';
-                ctx.shadowBlur = 18;
+                ctx.shadowBlur = this.lowSpecMode ? 0 : 18;
                 ctx.shadowColor = accent;
                 ctx.fillText(bossTitle, W * 0.5, bannerY + 74);
                 ctx.restore();
@@ -4197,7 +4229,7 @@ class Game {
         }
 
         // Limpiar el fondo completo de la pantalla lógica
-        ctx.fillStyle = '#06070a';
+        ctx.fillStyle = '#06040a';
         ctx.fillRect(0, 0, this.width, this.height);
 
         // Aplicar Screen Shake de cámara (estrictamente omitido durante pausa para evitar vibración)
@@ -4282,7 +4314,7 @@ class Game {
         if (this.isPaused) {
             // Fondo tenue de respaldo en el canvas durante pausa
             ctx.save();
-            ctx.fillStyle = 'rgba(6, 8, 14, 0.5)';
+            ctx.fillStyle = 'rgba(6, 4, 10, 0.58)';
             ctx.fillRect(0, 0, this.width, this.height);
             ctx.restore();
         }
@@ -4296,10 +4328,10 @@ class Game {
 
         // Marco redondeado con brillo compartido por los botones del HUD
         const frame = (b, color) => {
-            ctx.fillStyle = 'rgba(15, 23, 42, 0.88)';
+            ctx.fillStyle = 'rgba(8, 5, 13, 0.90)';
             ctx.strokeStyle = color;
             ctx.lineWidth = isMobile ? 2 : 2.5;
-            ctx.shadowBlur = 10;
+            ctx.shadowBlur = this.lowSpecMode ? 0 : 10;
             ctx.shadowColor = color;
             ctx.beginPath();
             if (ctx.roundRect) ctx.roundRect(b.x, b.y, b.w, b.h, 6);
@@ -4311,8 +4343,8 @@ class Game {
         // 1. Botón de Pausa en el HUD (Esquina Superior Derecha)
         const pb = this.touchControls.buttons.pause;
         ctx.save();
-        frame(pb, this.isPaused ? '#ef4444' : '#00f5d4');
-        ctx.fillStyle = this.isPaused ? '#ef4444' : '#00f5d4';
+        frame(pb, this.isPaused ? '#e11d48' : '#9333ea');
+        ctx.fillStyle = this.isPaused ? '#e11d48' : '#a855f7';
         ctx.shadowBlur = 0;
         const pBarW = Math.max(3, Math.round(pb.w * 0.12));
         const pBarH = Math.round(pb.h * 0.52);
@@ -4325,8 +4357,9 @@ class Game {
         const fsb = this.touchControls.buttons.fullscreen;
         const isFs = !!(document.fullscreenElement || document.webkitFullscreenElement || document.mozFullScreenElement || document.msFullscreenElement);
         ctx.save();
-        frame(fsb, isFs ? '#fbbf24' : '#00f5d4');
+        frame(fsb, isFs ? '#fbbf24' : '#9333ea');
         ctx.shadowBlur = 0;
+        ctx.strokeStyle = isFs ? '#fbbf24' : '#a855f7';
         const fcx = fsb.x + fsb.w * 0.5;
         const fcy = fsb.y + fsb.h * 0.5;
         const s = Math.round(fsb.w * 0.22);
@@ -4364,19 +4397,20 @@ class Game {
         ctx.save();
         ctx.beginPath();
         ctx.arc(bx, by, js.radius, 0, Math.PI * 2);
-        ctx.fillStyle = js.active ? 'rgba(15, 23, 42, 0.65)' : 'rgba(15, 23, 42, 0.40)';
+        ctx.fillStyle = js.active ? 'rgba(18, 10, 31, 0.68)' : 'rgba(8, 5, 13, 0.48)';
         ctx.fill();
         ctx.lineWidth = isMobile ? 2 : 2.5;
-        ctx.strokeStyle = js.active ? '#00f5d4' : 'rgba(0, 245, 212, 0.35)';
+        ctx.strokeStyle = js.active ? '#a855f7' : 'rgba(147, 51, 234, 0.45)';
         if (js.active) {
-            ctx.shadowBlur = 14;
-            ctx.shadowColor = '#00f5d4';
+            ctx.shadowBlur = this.lowSpecMode ? 0 : 14;
+            ctx.shadowColor = '#a855f7';
         }
         ctx.stroke();
+        ctx.shadowBlur = 0;
 
         // Guías de dirección dentro de la base
         ctx.beginPath();
-        ctx.strokeStyle = 'rgba(148, 163, 184, 0.25)';
+        ctx.strokeStyle = 'rgba(196, 181, 253, 0.25)';
         ctx.lineWidth = 1.5;
         const gLen = Math.round(js.radius * 0.58);
         ctx.moveTo(bx - gLen, by); ctx.lineTo(bx + gLen, by);
@@ -4388,10 +4422,10 @@ class Game {
         const sy = js.active ? js.stickY : by;
         ctx.beginPath();
         ctx.arc(sx, sy, js.stickRadius, 0, Math.PI * 2);
-        ctx.fillStyle = js.active ? 'rgba(0, 245, 212, 0.85)' : 'rgba(0, 245, 212, 0.30)';
+        ctx.fillStyle = js.active ? 'rgba(147, 51, 234, 0.85)' : 'rgba(109, 40, 217, 0.35)';
         ctx.fill();
         ctx.lineWidth = 2;
-        ctx.strokeStyle = '#ffffff';
+        ctx.strokeStyle = '#f3e8ff';
         ctx.stroke();
         ctx.restore();
 
@@ -4400,12 +4434,12 @@ class Game {
         ctx.save();
         ctx.beginPath();
         ctx.arc(wb.x, wb.y, wb.r, 0, Math.PI * 2);
-        ctx.fillStyle = wb.down ? 'rgba(251, 191, 36, 0.55)' : 'rgba(15, 23, 42, 0.78)';
+        ctx.fillStyle = wb.down ? 'rgba(147, 51, 234, 0.48)' : 'rgba(18, 10, 31, 0.85)';
         ctx.fill();
         ctx.lineWidth = isMobile ? 2 : 2.5;
-        ctx.strokeStyle = '#fbbf24';
-        ctx.shadowBlur = wb.down ? 16 : 8;
-        ctx.shadowColor = '#fbbf24';
+        ctx.strokeStyle = wb.down ? '#a855f7' : '#9333ea';
+        ctx.shadowBlur = this.lowSpecMode ? 0 : (wb.down ? 16 : 8);
+        ctx.shadowColor = '#a855f7';
         ctx.stroke();
 
         ctx.shadowBlur = 0;
@@ -4416,10 +4450,11 @@ class Game {
             if (this.player.currentWeapon === 'GUN') wepIcon = '🔫';
             else if (this.player.currentWeapon === 'RIFLE') wepIcon = '⚡';
         }
+        ctx.fillStyle = '#f3e8ff';
         ctx.font = isMobile ? '16px sans-serif' : '22px sans-serif';
         ctx.fillText(wepIcon, wb.x, wb.y - (isMobile ? 1 : 2));
         ctx.font = isMobile ? 'bold 7.5px "Courier New", monospace' : 'bold 9px "Courier New", monospace';
-        ctx.fillStyle = '#fbbf24';
+        ctx.fillStyle = '#c4b5fd';
         ctx.fillText('ARMA', wb.x, wb.y + (isMobile ? 12 : 17));
         ctx.restore();
 
@@ -4433,13 +4468,13 @@ class Game {
 
         ctx.beginPath();
         ctx.arc(db.x, db.y, db.r, 0, Math.PI * 2);
-        ctx.fillStyle = db.down ? 'rgba(0, 245, 212, 0.55)' : 'rgba(15, 23, 42, 0.78)';
+        ctx.fillStyle = db.down ? 'rgba(147, 51, 234, 0.50)' : 'rgba(18, 10, 31, 0.85)';
         ctx.fill();
         ctx.lineWidth = isMobile ? 2 : 2.5;
-        ctx.strokeStyle = dashReady ? '#00f5d4' : '#475569';
+        ctx.strokeStyle = dashReady ? '#a855f7' : '#4c1d95';
         if (dashReady) {
-            ctx.shadowBlur = 12;
-            ctx.shadowColor = '#00f5d4';
+            ctx.shadowBlur = this.lowSpecMode ? 0 : 12;
+            ctx.shadowColor = '#a855f7';
         }
         ctx.stroke();
 
@@ -4450,13 +4485,13 @@ class Game {
             ctx.moveTo(db.x, db.y);
             ctx.arc(db.x, db.y, db.r - 2, -Math.PI / 2 + dashPct * Math.PI * 2, -Math.PI / 2 + Math.PI * 2);
             ctx.closePath();
-            ctx.fillStyle = 'rgba(0, 0, 0, 0.70)';
+            ctx.fillStyle = 'rgba(8, 5, 13, 0.76)';
             ctx.fill();
 
             ctx.beginPath();
             ctx.arc(db.x, db.y, db.r, -Math.PI / 2, -Math.PI / 2 + dashPct * Math.PI * 2);
             ctx.lineWidth = isMobile ? 2.5 : 3.5;
-            ctx.strokeStyle = '#00f5d4';
+            ctx.strokeStyle = '#9333ea';
             ctx.stroke();
             ctx.restore();
         }
@@ -4464,10 +4499,11 @@ class Game {
         ctx.shadowBlur = 0;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
+        ctx.fillStyle = dashReady ? '#f3e8ff' : '#c4b5fd';
         ctx.font = isMobile ? '17px sans-serif' : '24px sans-serif';
         ctx.fillText('⚡', db.x, db.y - (isMobile ? 1 : 2));
         ctx.font = isMobile ? 'bold 7.5px "Courier New", monospace' : 'bold 9px "Courier New", monospace';
-        ctx.fillStyle = dashReady ? '#00f5d4' : '#94a3b8';
+        ctx.fillStyle = dashReady ? '#f3e8ff' : '#c4b5fd';
         ctx.fillText('DASH', db.x, db.y + (isMobile ? 13 : 18));
         ctx.restore();
 
@@ -4482,12 +4518,12 @@ class Game {
                 ctx.globalAlpha = count > 0 ? 0.96 : 0.36;
                 ctx.beginPath();
                 ctx.arc(pb.x, pb.y, pb.r, 0, Math.PI * 2);
-                ctx.fillStyle = pb.down ? 'rgba(255, 255, 255, 0.28)' : 'rgba(15, 23, 42, 0.85)';
+                ctx.fillStyle = pb.down ? 'rgba(147, 51, 234, 0.42)' : 'rgba(18, 10, 31, 0.85)';
                 ctx.fill();
                 ctx.lineWidth = isMobile ? 1.8 : 2.2;
-                ctx.strokeStyle = count > 0 ? pb.color : '#475569';
+                ctx.strokeStyle = count > 0 ? pb.color : '#4c1d95';
                 if (count > 0) {
-                    ctx.shadowBlur = 10;
+                    ctx.shadowBlur = this.lowSpecMode ? 0 : 10;
                     ctx.shadowColor = pb.color;
                 }
                 ctx.stroke();
@@ -4498,7 +4534,7 @@ class Game {
 
                 // Número de cargas disponibles (0 a 3)
                 ctx.font = isMobile ? '900 8.5px "Courier New", monospace' : '900 10px "Courier New", monospace';
-                ctx.fillStyle = count > 0 ? '#ffffff' : '#94a3b8';
+                ctx.fillStyle = count > 0 ? '#f3e8ff' : '#c4b5fd';
                 ctx.textAlign = 'center';
                 ctx.textBaseline = 'middle';
                 ctx.fillText(`${count}`, pb.x, pb.y + pb.r - (isMobile ? 4.5 : 5.5));
@@ -4510,27 +4546,30 @@ class Game {
         const ab = this.touchControls.buttons.attack;
         ctx.save();
         const atkHeld = this.touchControls.isAttackTouchHeld;
-        let atkColor = '#ef4444';
+        const hasBelce = this.player && (this.player.hasPowerUp ? this.player.hasPowerUp('BELCESWORD') : this.player.powerup === 'BELCESWORD');
+        const hasLola = this.player && (this.player.hasPowerUp ? this.player.hasPowerUp('LOLA_BLASTER') : this.player.powerup === 'LOLA_BLASTER');
+        let atkColor = '#e11d48';
+        let atkHeldFill = 'rgba(225, 29, 72, 0.45)';
         if (this.player) {
-            if (this.player.currentWeapon === 'SWORD') atkColor = '#00f5d4';
-            else if (this.player.currentWeapon === 'GUN') atkColor = '#38bdf8';
-            else if (this.player.currentWeapon === 'RIFLE') atkColor = '#fbbf24';
+            if (this.player.currentWeapon === 'SWORD') {
+                atkColor = hasBelce ? '#a855f7' : '#9333ea';
+                atkHeldFill = hasBelce ? 'rgba(168, 85, 247, 0.45)' : 'rgba(147, 51, 234, 0.45)';
+            } else if (this.player.currentWeapon === 'GUN') {
+                atkColor = hasLola ? '#e879f9' : '#c084fc';
+                atkHeldFill = hasLola ? 'rgba(232, 121, 249, 0.45)' : 'rgba(192, 132, 252, 0.45)';
+            } else if (this.player.currentWeapon === 'RIFLE') {
+                atkColor = '#fbbf24';
+                atkHeldFill = 'rgba(251, 191, 36, 0.45)';
+            }
         }
 
         ctx.beginPath();
         ctx.arc(ab.x, ab.y, ab.r, 0, Math.PI * 2);
-        if (atkHeld) {
-            if (this.player && this.player.currentWeapon === 'SWORD') ctx.fillStyle = 'rgba(0, 245, 212, 0.45)';
-            else if (this.player && this.player.currentWeapon === 'GUN') ctx.fillStyle = 'rgba(56, 189, 248, 0.45)';
-            else if (this.player && this.player.currentWeapon === 'RIFLE') ctx.fillStyle = 'rgba(251, 191, 36, 0.45)';
-            else ctx.fillStyle = 'rgba(239, 68, 68, 0.45)';
-        } else {
-            ctx.fillStyle = 'rgba(15, 23, 42, 0.82)';
-        }
+        ctx.fillStyle = atkHeld ? atkHeldFill : 'rgba(18, 10, 31, 0.85)';
         ctx.fill();
         ctx.lineWidth = isMobile ? 2.5 : 3.5;
         ctx.strokeStyle = atkColor;
-        ctx.shadowBlur = atkHeld ? 22 : 10;
+        ctx.shadowBlur = this.lowSpecMode ? 0 : (atkHeld ? 22 : 10);
         ctx.shadowColor = atkColor;
         ctx.stroke();
 
@@ -4543,12 +4582,12 @@ class Game {
             ctx.moveTo(ab.x, ab.y);
             ctx.lineTo(px, py);
             ctx.lineWidth = isMobile ? 2.5 : 3.5;
-            ctx.strokeStyle = '#ffffff';
+            ctx.strokeStyle = '#f3e8ff';
             ctx.stroke();
 
             ctx.beginPath();
             ctx.arc(px, py, isMobile ? 4.5 : 6, 0, Math.PI * 2);
-            ctx.fillStyle = '#ffffff';
+            ctx.fillStyle = '#f3e8ff';
             ctx.fill();
         } else {
             ctx.shadowBlur = 0;
@@ -4557,7 +4596,7 @@ class Game {
             ctx.font = isMobile ? '20px sans-serif' : '28px sans-serif';
             ctx.fillText('🎯', ab.x, ab.y - (isMobile ? 3 : 4));
             ctx.font = isMobile ? '900 8px "Courier New", monospace' : '900 10px "Courier New", monospace';
-            ctx.fillStyle = '#ffffff';
+            ctx.fillStyle = '#f3e8ff';
             ctx.fillText('ATACAR', ab.x, ab.y + (isMobile ? 15 : 20));
         }
         ctx.restore();
