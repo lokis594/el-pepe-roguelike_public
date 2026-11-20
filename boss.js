@@ -691,146 +691,191 @@ class Boss extends Entity {
         }
         ctx.restore();
 
-        // 1. SISTEMA DE EXTREMIDADES: PIERNAS (x2)
+        // 1. SISTEMA DE EXTREMIDADES Y TRAJE / ARMADURA DEL JEFE
+        const bodyImg = this.isRisin
+            ? ((typeof v2Assets !== 'undefined' && v2Assets && v2Assets.bossRisinBody) || (typeof bossRisinBodyImg !== 'undefined' ? bossRisinBodyImg : null))
+            : ((typeof v2Assets !== 'undefined' && v2Assets && v2Assets.bossPepeBody) || (typeof bossPepeBodyImg !== 'undefined' ? bossPepeBodyImg : null));
+        const hasV2Body = !!(bodyImg && bodyImg.complete && bodyImg.naturalWidth > 0);
+
         const legSwing = isMoving ? Math.sin(this.animTime * 10) * 11 : Math.sin(this.animTime * 3) * 2;
         const legSwingAlt = isMoving ? Math.sin(this.animTime * 10 + Math.PI) * 11 : Math.sin(this.animTime * 3 + Math.PI) * 2;
 
-        const drawLeg = (offsetX, swing) => {
+        const drawLeg = (offsetX, swing, darkSuit = false) => {
             ctx.save();
             ctx.translate(offsetX, 22);
 
             // Pantalón oscuro
-            ctx.fillStyle = '#1e293b';
-            ctx.strokeStyle = '#0f172a';
+            ctx.fillStyle = darkSuit ? '#140c24' : '#1e293b';
+            ctx.strokeStyle = darkSuit ? '#0b0714' : '#0f172a';
             ctx.lineWidth = 2.5;
             ctx.beginPath();
             ctx.rect(-6, 0, 12, 22 + swing);
             ctx.fill();
             ctx.stroke();
 
-            // Zapatilla deportiva
+            // Zapatilla / bota
             const footY = 22 + swing;
-            ctx.fillStyle = '#f8fafc';
-            ctx.strokeStyle = '#334155';
+            ctx.fillStyle = darkSuit ? '#0b0714' : '#f8fafc';
+            ctx.strokeStyle = darkSuit ? '#1d1135' : '#334155';
             ctx.lineWidth = 1.5;
             ctx.beginPath();
             ctx.ellipse(0, footY, 8, 4.5, 0, 0, Math.PI * 2);
             ctx.fill();
             ctx.stroke();
 
-            // Suela roja
-            ctx.fillStyle = '#e63928';
+            // Suela de contraste
+            ctx.fillStyle = darkSuit ? (this.isRisin ? '#a855f7' : '#e11d48') : '#e63928';
             ctx.fillRect(-7, footY + 2, 14, 2.5);
 
             ctx.restore();
         };
 
-        drawLeg(-13, legSwing);
-        drawLeg(13, legSwingAlt);
+        const walkCycle = this.animTime * 11;
+        const stepHop = isMoving ? Math.abs(Math.sin(walkCycle)) * 6 : Math.sin(this.animTime * 4.5) * 1.2;
 
-        // 1. SISTEMA DE EXTREMIDADES: BRAZOS Y MANOS (x2)
-        const drawArm = (isLeft) => {
+        if (hasV2Body) {
             ctx.save();
-            const shoulderX = isLeft ? -25 : 25;
-            const shoulderY = 0;
-            ctx.translate(shoulderX, shoulderY);
-
-            let armAngle = 0;
-            if (this.state === 'CHARGE_TELEGRAPH' || this.state === 'CHARGE_DASH') {
-                // Brazos hacia adelante como si fuera a taclear en la dirección de la embestida
-                armAngle = this.chargeAngle + (isLeft ? -0.25 : 0.25);
-            } else if (this.state === 'SPIRAL_CAST') {
-                // Levanta ambos brazos invocando proyectiles hacia arriba
-                armAngle = isLeft ? -Math.PI * 0.72 : -Math.PI * 0.28;
-            } else if (this.state === 'JUMP_SLAM') {
-                // Golpea el suelo con ambos puños al caer
-                armAngle = isLeft ? Math.PI * 0.42 : Math.PI * 0.58;
-            } else {
-                // Estado normal: balanceo con ritmo de combate
-                const sway = Math.sin(this.animTime * 6) * 0.32;
-                armAngle = isLeft ? (Math.PI * 0.48 + sway) : (Math.PI * 0.52 - sway);
+            const waddleAngle = isMoving ? Math.sin(walkCycle) * 0.13 : 0;
+            const scaleX = isMoving ? (1 + Math.sin(walkCycle * 2) * 0.05) : (1 + Math.sin(this.animTime * 4.5) * 0.025);
+            const scaleY = isMoving ? (1 - Math.sin(walkCycle * 2) * 0.05) : (1 - Math.sin(this.animTime * 4.5) * 0.025);
+            ctx.translate(0, -stepHop);
+            ctx.rotate(waddleAngle);
+            ctx.scale(scaleX, scaleY);
+            if (this.enraged) {
+                ctx.shadowBlur = 18;
+                ctx.shadowColor = auraColor;
             }
-
-            ctx.rotate(armAngle);
-
-            // Manga roja de la camiseta (#e63928)
-            ctx.fillStyle = this.hitFlash > 0 ? '#ffffff' : '#e63928';
-            ctx.strokeStyle = '#991b1b';
-            ctx.lineWidth = 2.5;
-            ctx.beginPath();
-            ctx.rect(-7, -4, 14, 14);
-            ctx.fill();
-            ctx.stroke();
-
-            // Brazo musculoso (piel morena cálida #8d5538)
-            ctx.fillStyle = this.hitFlash > 0 ? '#ffffff' : '#8d5538';
-            ctx.strokeStyle = '#5a3420';
-            ctx.lineWidth = 2;
-            ctx.beginPath();
-            ctx.rect(-5.5, 10, 11, 15);
-            ctx.fill();
-            ctx.stroke();
-
-            // Puño / Mano
-            ctx.fillStyle = this.hitFlash > 0 ? '#ffffff' : '#79472e';
-            ctx.beginPath();
-            ctx.arc(0, 27, 7.5, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.stroke();
-
-            // Efecto de invocación en manos durante Espiral Arcana
-            if (this.state === 'SPIRAL_CAST') {
-                ctx.fillStyle = this.enraged ? '#fbbf24' : '#ef4444';
-                ctx.shadowBlur = 12;
-                ctx.shadowColor = this.enraged ? '#fbbf24' : '#ef4444';
+            ctx.drawImage(bodyImg, -50, -38, 100, 92);
+            if (this.hitFlash > 0) {
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
                 ctx.beginPath();
-                ctx.arc(0, 29, 4, 0, Math.PI * 2);
+                ctx.ellipse(0, 10, 32, 24, 0, 0, Math.PI * 2);
                 ctx.fill();
             }
-
             ctx.restore();
-        };
 
-        drawArm(true);
-        drawArm(false);
+            // Destello de invocación arcana a ambos lados de las manos durante Espiral Arcana
+            if (this.state === 'SPIRAL_CAST') {
+                ctx.save();
+                const castColor = this.enraged ? '#fbbf24' : '#ef4444';
+                ctx.fillStyle = castColor;
+                ctx.shadowBlur = 14;
+                ctx.shadowColor = castColor;
+                for (const handX of [-36, 36]) {
+                    ctx.beginPath();
+                    ctx.arc(handX, 14 - stepHop, 5, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+                ctx.restore();
+            }
+        } else {
+            drawLeg(-13, legSwing, false);
+            drawLeg(13, legSwingAlt, false);
 
-        // 1. SISTEMA DE TORSO: CAMISETA ROJA VIBRANTE (#e63928)
-        ctx.save();
-        ctx.fillStyle = this.hitFlash > 0 ? '#ffffff' : '#e63928';
-        ctx.strokeStyle = '#991b1b';
-        ctx.lineWidth = 3;
-        ctx.beginPath();
-        ctx.moveTo(-26, -2);
-        ctx.lineTo(-22, 24);
-        ctx.lineTo(22, 24);
-        ctx.lineTo(26, -2);
-        ctx.lineTo(15, -9);
-        ctx.lineTo(-15, -9);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
+            // 1. SISTEMA DE EXTREMIDADES: BRAZOS Y MANOS (x2)
+            const drawArm = (isLeft) => {
+                ctx.save();
+                const shoulderX = isLeft ? -25 : 25;
+                const shoulderY = 0;
+                ctx.translate(shoulderX, shoulderY);
 
-        // Cuello de la camiseta
-        ctx.strokeStyle = '#b91c1c';
-        ctx.lineWidth = 2.5;
-        ctx.beginPath();
-        ctx.arc(0, -9, 8.5, 0, Math.PI);
-        ctx.stroke();
+                let armAngle = 0;
+                if (this.state === 'CHARGE_TELEGRAPH' || this.state === 'CHARGE_DASH') {
+                    // Brazos hacia adelante como si fuera a taclear en la dirección de la embestida
+                    armAngle = this.chargeAngle + (isLeft ? -0.25 : 0.25);
+                } else if (this.state === 'SPIRAL_CAST') {
+                    // Levanta ambos brazos invocando proyectiles hacia arriba
+                    armAngle = isLeft ? -Math.PI * 0.72 : -Math.PI * 0.28;
+                } else if (this.state === 'JUMP_SLAM') {
+                    // Golpea el suelo con ambos puños al caer
+                    armAngle = isLeft ? Math.PI * 0.42 : Math.PI * 0.58;
+                } else {
+                    // Estado normal: balanceo con ritmo de combate
+                    const sway = Math.sin(this.animTime * 6) * 0.32;
+                    armAngle = isLeft ? (Math.PI * 0.48 + sway) : (Math.PI * 0.52 - sway);
+                }
 
-        // Pliegues y sombreado
-        ctx.strokeStyle = 'rgba(153, 27, 27, 0.4)';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        ctx.moveTo(-11, 9);
-        ctx.lineTo(-3, 14);
-        ctx.moveTo(11, 7);
-        ctx.lineTo(3, 13);
-        ctx.stroke();
-        ctx.restore();
+                ctx.rotate(armAngle);
+
+                // Manga roja de la camiseta (#e63928)
+                ctx.fillStyle = this.hitFlash > 0 ? '#ffffff' : '#e63928';
+                ctx.strokeStyle = '#991b1b';
+                ctx.lineWidth = 2.5;
+                ctx.beginPath();
+                ctx.rect(-7, -4, 14, 14);
+                ctx.fill();
+                ctx.stroke();
+
+                // Brazo musculoso (piel morena cálida #8d5538)
+                ctx.fillStyle = this.hitFlash > 0 ? '#ffffff' : '#8d5538';
+                ctx.strokeStyle = '#5a3420';
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                ctx.rect(-5.5, 10, 11, 15);
+                ctx.fill();
+                ctx.stroke();
+
+                // Puño / Mano
+                ctx.fillStyle = this.hitFlash > 0 ? '#ffffff' : '#79472e';
+                ctx.beginPath();
+                ctx.arc(0, 27, 7.5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.stroke();
+
+                // Efecto de invocación en manos durante Espiral Arcana
+                if (this.state === 'SPIRAL_CAST') {
+                    ctx.fillStyle = this.enraged ? '#fbbf24' : '#ef4444';
+                    ctx.shadowBlur = 12;
+                    ctx.shadowColor = this.enraged ? '#fbbf24' : '#ef4444';
+                    ctx.beginPath();
+                    ctx.arc(0, 29, 4, 0, Math.PI * 2);
+                    ctx.fill();
+                }
+
+                ctx.restore();
+            };
+
+            drawArm(true);
+            drawArm(false);
+
+            // 1. SISTEMA DE TORSO: CAMISETA ROJA VIBRANTE (#e63928)
+            ctx.save();
+            ctx.fillStyle = this.hitFlash > 0 ? '#ffffff' : '#e63928';
+            ctx.strokeStyle = '#991b1b';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(-26, -2);
+            ctx.lineTo(-22, 24);
+            ctx.lineTo(22, 24);
+            ctx.lineTo(26, -2);
+            ctx.lineTo(15, -9);
+            ctx.lineTo(-15, -9);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+
+            // Cuello de la camiseta
+            ctx.strokeStyle = '#b91c1c';
+            ctx.lineWidth = 2.5;
+            ctx.beginPath();
+            ctx.arc(0, -9, 8.5, 0, Math.PI);
+            ctx.stroke();
+
+            // Pliegues y sombreado
+            ctx.strokeStyle = 'rgba(153, 27, 27, 0.4)';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(-11, 9);
+            ctx.lineTo(-3, 14);
+            ctx.moveTo(11, 7);
+            ctx.lineTo(3, 13);
+            ctx.stroke();
+            ctx.restore();
+        }
 
         // 2. CABEZA DEL JEFE (EL PEPE MAESTRO EN NIVEL 1 / RISÍN PEPÍN EN NIVEL 2)
         const headX = 0;
-        const headY = -18;
+        const headY = -18 - (hasV2Body ? stepHop : 0);
         const headR = this.isRisin ? 30 : 27;
         const activeBossImg = this.isRisin ? (typeof risinImg !== 'undefined' ? risinImg : pepeImg) : pepeImg;
 

@@ -185,46 +185,78 @@ class Pillar {
         ctx.translate(this.x, this.y);
 
         const r = this.radius;
+        let pillarImg = null;
+        if (typeof v2Assets !== 'undefined' && v2Assets) {
+            if (typeof v2Assets.isReady === 'function') {
+                if (v2Assets.isReady('pillarProp')) {
+                    pillarImg = v2Assets.pillarProp || (typeof pillarPropImg !== 'undefined' ? pillarPropImg : null);
+                }
+            } else if (v2Assets.pillarProp && v2Assets.pillarProp.complete && v2Assets.pillarProp.naturalWidth > 0) {
+                pillarImg = v2Assets.pillarProp;
+            }
+        } else if (typeof pillarPropImg !== 'undefined' && pillarPropImg && pillarPropImg.complete && pillarPropImg.naturalWidth > 0) {
+            pillarImg = pillarPropImg;
+        }
 
-        // Sombra proyectada cuadrada / voxel
-        ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
-        ctx.fillRect(-r + 4, -r + 6, r * 2, r * 2);
+        if (pillarImg) {
+            // Sombra elíptica suave en la base del pilar
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.52)';
+            ctx.beginPath();
+            ctx.ellipse(0, r * 0.58, r * 1.05, r * 0.52, 0, 0, Math.PI * 2);
+            ctx.fill();
 
-        // Bloque sólido estilo Minecraft Deep Slate / Cobblestone
-        ctx.fillStyle = this.hitFlash > 0 ? '#ffffff' : '#26282e';
-        ctx.strokeStyle = '#18191c';
-        ctx.lineWidth = 3;
-        ctx.fillRect(-r, -r, r * 2, r * 2);
-        ctx.strokeRect(-r, -r, r * 2, r * 2);
+            // Sprite ilustrado del pilar centrado y alineado con la hitbox física
+            const drawSize = r * 2.35;
+            ctx.drawImage(pillarImg, -drawSize * 0.5, -drawSize * 0.5 - 4, drawSize, drawSize);
 
-        // Relieve superior/interior de los ladrillos del pilar
-        ctx.fillStyle = this.hitFlash > 0 ? '#e2e8f0' : '#383b45';
-        ctx.fillRect(-r + 3, -r + 3, r * 2 - 6, r * 2 - 6);
+            // Destello circular de impacto
+            if (this.hitFlash > 0) {
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
+                ctx.beginPath();
+                ctx.arc(0, -2, r, 0, Math.PI * 2);
+                ctx.fill();
+            }
+        } else {
+            // Sombra proyectada cuadrada / voxel (fallback procedural)
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+            ctx.fillRect(-r + 4, -r + 6, r * 2, r * 2);
 
-        // Patrón de bloques de piedra labrada interna
-        ctx.strokeStyle = '#1a1b1f';
-        ctx.lineWidth = 2;
-        ctx.beginPath();
-        // Línea central horizontal
-        ctx.moveTo(-r + 3, 0);
-        ctx.lineTo(r - 3, 0);
-        // Ladrillos escalonados
-        ctx.moveTo(0, -r + 3);
-        ctx.lineTo(0, 0);
-        ctx.moveTo(-r * 0.5, 0);
-        ctx.lineTo(-r * 0.5, r - 3);
-        ctx.moveTo(r * 0.5, 0);
-        ctx.lineTo(r * 0.5, r - 3);
-        ctx.stroke();
+            // Bloque sólido estilo Minecraft Deep Slate / Cobblestone
+            ctx.fillStyle = this.hitFlash > 0 ? '#ffffff' : '#26282e';
+            ctx.strokeStyle = '#18191c';
+            ctx.lineWidth = 3;
+            ctx.fillRect(-r, -r, r * 2, r * 2);
+            ctx.strokeRect(-r, -r, r * 2, r * 2);
 
-        // Píxeles de musgo estilo Mossy Cobble en esquinas
-        ctx.fillStyle = '#4a6b3b';
-        ctx.fillRect(-r + 3, -r + 3, 8, 6);
-        ctx.fillRect(r - 11, r - 9, 8, 6);
-        ctx.fillStyle = '#38522b';
-        ctx.fillRect(-r + 5, -r + 5, 4, 4);
+            // Relieve superior/interior de los ladrillos del pilar
+            ctx.fillStyle = this.hitFlash > 0 ? '#e2e8f0' : '#383b45';
+            ctx.fillRect(-r + 3, -r + 3, r * 2 - 6, r * 2 - 6);
 
-        // Grietas procedurales pixeladas si está dañado
+            // Patrón de bloques de piedra labrada interna
+            ctx.strokeStyle = '#1a1b1f';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            // Línea central horizontal
+            ctx.moveTo(-r + 3, 0);
+            ctx.lineTo(r - 3, 0);
+            // Ladrillos escalonados
+            ctx.moveTo(0, -r + 3);
+            ctx.lineTo(0, 0);
+            ctx.moveTo(-r * 0.5, 0);
+            ctx.lineTo(-r * 0.5, r - 3);
+            ctx.moveTo(r * 0.5, 0);
+            ctx.lineTo(r * 0.5, r - 3);
+            ctx.stroke();
+
+            // Píxeles de musgo estilo Mossy Cobble en esquinas
+            ctx.fillStyle = '#4a6b3b';
+            ctx.fillRect(-r + 3, -r + 3, 8, 6);
+            ctx.fillRect(r - 11, r - 9, 8, 6);
+            ctx.fillStyle = '#38522b';
+            ctx.fillRect(-r + 5, -r + 5, 4, 4);
+        }
+
+        // Grietas procedurales si está dañado (visibles tanto sobre sprite como sobre fallback)
         const dmgRatio = 1 - (this.hp / this.maxHp);
         if (dmgRatio > 0.25) {
             ctx.strokeStyle = '#0f1012';

@@ -520,3 +520,39 @@ const bombaGritoImg = loadImageWithFallback('img/Bomba_grito.png', 'img/bomba_gr
 const lolaBlasterImg = loadImageWithFallback('img/Lola_Blaster.png', 'img/lola_blaster.png');
 const lolaBlaster2Img = loadImageWithFallback('img/Lola_Blaster2.png', 'img/lola_blaster2.png');
 const belceswordImg = loadImageWithFallback('img/Belcesword.png', 'img/belcesword.png');
+
+// Manifiesto de Assets Visuales v2.0.0 (img/v2/)
+const floorLvl1Img = loadImageWithFallback('img/v2/floor_lvl1.png', 'img/v2/floor_lvl1.png');
+const floorLvl2Img = loadImageWithFallback('img/v2/floor_lvl2.png', 'img/v2/floor_lvl2.png');
+const wallTileImg = loadImageWithFallback('img/v2/wall_tile.png', 'img/v2/wall_tile.png');
+const pillarPropImg = loadImageWithFallback('img/v2/pillar_prop.png', 'img/v2/pillar_prop.png');
+const torchBrazierImg = loadImageWithFallback('img/v2/torch_brazier.png', 'img/v2/torch_brazier.png');
+const portalDoorImg = loadImageWithFallback('img/v2/portal_door.png', 'img/v2/portal_door.png');
+const weaponSwordImg = loadImageWithFallback('img/v2/weapon_sword.png', 'img/v2/weapon_sword.png');
+const weaponPistolImg = loadImageWithFallback('img/v2/weapon_pistol.png', 'img/v2/weapon_pistol.png');
+const weaponRifleImg = loadImageWithFallback('img/v2/weapon_rifle.png', 'img/v2/weapon_rifle.png');
+const bossPepeBodyImg = loadImageWithFallback('img/v2/boss_pepe_body.png', 'img/v2/boss_pepe_body.png');
+const bossRisinBodyImg = loadImageWithFallback('img/v2/boss_risin_body.png', 'img/v2/boss_risin_body.png');
+const potionShopImg = loadImageWithFallback('img/v2/potion_shop.png', 'img/v2/potion_shop.png');
+
+const v2Assets = {
+    floorLvl1: floorLvl1Img,
+    floorLvl2: floorLvl2Img,
+    wallTile: wallTileImg,
+    pillarProp: pillarPropImg,
+    torchBrazier: torchBrazierImg,
+    portalDoor: portalDoorImg,
+    weaponSword: weaponSwordImg,
+    weaponPistol: weaponPistolImg,
+    weaponRifle: weaponRifleImg,
+    bossPepeBody: bossPepeBodyImg,
+    bossRisinBody: bossRisinBodyImg,
+    potionShop: potionShopImg,
+    isReady(key) {
+        const img = this[key];
+        return !!(img && img.complete && img.naturalWidth > 0);
+    }
+};
+if (typeof window !== 'undefined') {
+    window.v2Assets = v2Assets;
+}

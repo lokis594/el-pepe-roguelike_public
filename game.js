@@ -1709,6 +1709,51 @@ class Game {
         }
     }
 
+    getV2Registry() {
+        return (typeof v2Assets !== 'undefined' && v2Assets)
+            ? v2Assets
+            : ((typeof window !== 'undefined' && window.v2Assets) ? window.v2Assets : null);
+    }
+
+    getV2Asset(key, fallbackImg = null) {
+        const v2 = this.getV2Registry();
+        if (v2) {
+            if (typeof v2.isReady === 'function') {
+                if (!v2.isReady(key)) return null;
+                return v2[key] || fallbackImg || null;
+            }
+            const img = v2[key];
+            return (img && img.complete && img.naturalWidth > 0) ? img : null;
+        }
+        return (fallbackImg && fallbackImg.complete && fallbackImg.naturalWidth > 0) ? fallbackImg : null;
+    }
+
+    drawTiledTexture(targetCtx, img, tileSize, rx, ry, rw, rh) {
+        const tileCanvas = document.createElement('canvas');
+        tileCanvas.width = tileSize;
+        tileCanvas.height = tileSize;
+        const tctx = tileCanvas.getContext('2d');
+        if (tctx && tctx.drawImage) {
+            tctx.drawImage(img, 0, 0, tileSize, tileSize);
+        }
+        const pat = targetCtx.createPattern ? targetCtx.createPattern(tileCanvas, 'repeat') : null;
+        targetCtx.save();
+        targetCtx.beginPath();
+        targetCtx.rect(rx, ry, rw, rh);
+        targetCtx.clip();
+        if (pat) {
+            targetCtx.fillStyle = pat;
+            targetCtx.fillRect(rx, ry, rw, rh);
+        } else {
+            for (let tx = rx; tx < rx + rw; tx += tileSize) {
+                for (let ty = ry; ty < ry + rh; ty += tileSize) {
+                    targetCtx.drawImage(img, tx, ty, tileSize, tileSize);
+                }
+            }
+        }
+        targetCtx.restore();
+    }
+
     buildDungeonFloorCanvas() {
         const offCanvas = document.createElement('canvas');
         offCanvas.width = this.worldW;
@@ -1717,37 +1762,58 @@ class Game {
 
         const { x, y, w, h } = this.arena;
 
+        const v2 = this.getV2Registry();
+        const floorImg = v2 ? (this.level === 2 ? v2.floorLvl2 : v2.floorLvl1) : null;
+        const wallImg = v2 ? v2.wallTile : null;
+        this.floorUsedV2 = !!(floorImg && floorImg.complete && floorImg.naturalWidth > 0);
+        this.wallUsedV2 = !!(wallImg && wallImg.complete && wallImg.naturalWidth > 0);
+
         // 1. Fondo exterior abisal oscuro
         fctx.fillStyle = '#06040a';
         fctx.fillRect(0, 0, this.worldW, this.worldH);
 
-        // 2. Muro perimetral exterior de Deepslate (estilo Minecraft Stronghold)
+        // 2. Muro perimetral exterior (v2 texturizado o fallback procedural de Deepslate)
         const wallThickness = 28;
-        fctx.fillStyle = '#18191d';
-        fctx.fillRect(x - wallThickness, y - wallThickness, w + wallThickness * 2, h + wallThickness * 2);
+        if (this.wallUsedV2) {
+            this.drawTiledTexture(
+                fctx,
+                wallImg,
+                64,
+                x - wallThickness,
+                y - wallThickness,
+                w + wallThickness * 2,
+                h + wallThickness * 2
+            );
+            fctx.strokeStyle = '#0b0714';
+            fctx.lineWidth = 3;
+            fctx.strokeRect(x - wallThickness, y - wallThickness, w + wallThickness * 2, h + wallThickness * 2);
+        } else {
+            fctx.fillStyle = '#18191d';
+            fctx.fillRect(x - wallThickness, y - wallThickness, w + wallThickness * 2, h + wallThickness * 2);
 
-        const borderBlockSize = 28;
-        const borderHash = (bx, by) => {
-            let bh = (bx * 374761393 + by * 668265263) ^ 0x5bf03635;
-            bh = Math.imul(bh ^ (bh >>> 13), 1274126177);
-            return (bh ^ (bh >>> 16)) >>> 0;
-        };
+            const borderBlockSize = 28;
+            const borderHash = (bx, by) => {
+                let bh = (bx * 374761393 + by * 668265263) ^ 0x5bf03635;
+                bh = Math.imul(bh ^ (bh >>> 13), 1274126177);
+                return (bh ^ (bh >>> 16)) >>> 0;
+            };
 
-        for (let bx = x - wallThickness; bx <= x + w + wallThickness; bx += borderBlockSize) {
-            for (let by = y - wallThickness; by <= y + h + wallThickness; by += borderBlockSize) {
-                if (bx < x || bx >= x + w || by < y || by >= y + h) {
-                    const rnd = (borderHash(Math.floor(bx), Math.floor(by)) % 100) / 100;
-                    fctx.fillStyle = rnd > 0.5 ? '#202229' : '#191b22';
-                    fctx.fillRect(bx, by, borderBlockSize, borderBlockSize);
+            for (let bx = x - wallThickness; bx <= x + w + wallThickness; bx += borderBlockSize) {
+                for (let by = y - wallThickness; by <= y + h + wallThickness; by += borderBlockSize) {
+                    if (bx < x || bx >= x + w || by < y || by >= y + h) {
+                        const rnd = (borderHash(Math.floor(bx), Math.floor(by)) % 100) / 100;
+                        fctx.fillStyle = rnd > 0.5 ? '#202229' : '#191b22';
+                        fctx.fillRect(bx, by, borderBlockSize, borderBlockSize);
 
-                    // Vetas horizontales de pizarra / Deepslate
-                    fctx.fillStyle = '#131418';
-                    fctx.fillRect(bx, by + borderBlockSize * 0.35, borderBlockSize, 2);
-                    fctx.fillRect(bx, by + borderBlockSize * 0.7, borderBlockSize, 2);
+                        // Vetas horizontales de pizarra / Deepslate
+                        fctx.fillStyle = '#131418';
+                        fctx.fillRect(bx, by + borderBlockSize * 0.35, borderBlockSize, 2);
+                        fctx.fillRect(bx, by + borderBlockSize * 0.7, borderBlockSize, 2);
 
-                    fctx.strokeStyle = '#0e0f13';
-                    fctx.lineWidth = 1.5;
-                    fctx.strokeRect(bx, by, borderBlockSize, borderBlockSize);
+                        fctx.strokeStyle = '#0e0f13';
+                        fctx.lineWidth = 1.5;
+                        fctx.strokeRect(bx, by, borderBlockSize, borderBlockSize);
+                    }
                 }
             }
         }
@@ -1757,148 +1823,172 @@ class Game {
         fctx.lineWidth = 4;
         fctx.strokeRect(x - 2, y - 2, w + 4, h + 4);
 
-        // 3. Suelo de la mazmorra con cuadrícula de bloques texturizados (48x48 píxeles)
+        // 3. Suelo de la mazmorra (v2 CanvasPattern escalado o fallback procedural 48x48)
         fctx.save();
         fctx.beginPath();
         fctx.rect(x, y, w, h);
         fctx.clip();
 
-        const tileSize = 48;
-        const tileHash = (gx, gy) => {
-            let th = (gx * 374761393 + gy * 668265263) ^ 0x5bf03635;
-            th = Math.imul(th ^ (th >>> 13), 1274126177);
-            return (th ^ (th >>> 16)) >>> 0;
-        };
+        if (this.floorUsedV2) {
+            this.drawTiledTexture(fctx, floorImg, 128, x, y, w, h);
+        } else {
+            const tileSize = 48;
+            const tileHash = (gx, gy) => {
+                let th = (gx * 374761393 + gy * 668265263) ^ 0x5bf03635;
+                th = Math.imul(th ^ (th >>> 13), 1274126177);
+                return (th ^ (th >>> 16)) >>> 0;
+            };
 
-        for (let tx = x; tx < x + w; tx += tileSize) {
-            for (let ty = y; ty < y + h; ty += tileSize) {
-                const tw = Math.min(tileSize, x + w - tx);
-                const th = Math.min(tileSize, y + h - ty);
-                const hVal = tileHash(Math.floor(tx), Math.floor(ty));
-                const roll = (hVal % 1000) / 1000;
+            for (let tx = x; tx < x + w; tx += tileSize) {
+                for (let ty = y; ty < y + h; ty += tileSize) {
+                    const tw = Math.min(tileSize, x + w - tx);
+                    const th = Math.min(tileSize, y + h - ty);
+                    const hVal = tileHash(Math.floor(tx), Math.floor(ty));
+                    const roll = (hVal % 1000) / 1000;
 
-                if (roll < 0.60) {
-                    // TIPO 1: Stone Bricks (Piedra Labrada de Stronghold)
-                    fctx.fillStyle = '#4c4f56';
-                    fctx.fillRect(tx, ty, tw, th);
+                    if (roll < 0.60) {
+                        // TIPO 1: Stone Bricks (Piedra Labrada de Stronghold)
+                        fctx.fillStyle = '#4c4f56';
+                        fctx.fillRect(tx, ty, tw, th);
 
-                    fctx.strokeStyle = '#27292e';
-                    fctx.lineWidth = 2;
-                    fctx.beginPath();
-                    // Línea horizontal central
-                    fctx.moveTo(tx, ty + 24);
-                    fctx.lineTo(tx + tw, ty + 24);
-                    // Línea vertical fila superior
-                    fctx.moveTo(tx + 24, ty);
-                    fctx.lineTo(tx + 24, ty + 24);
-                    // Líneas verticales fila inferior (escalonadas)
-                    fctx.moveTo(tx, ty + 24);
-                    fctx.lineTo(tx, ty + th);
-                    fctx.moveTo(tx + 48, ty + 24);
-                    fctx.lineTo(tx + 48, ty + th);
-                    fctx.stroke();
+                        fctx.strokeStyle = '#27292e';
+                        fctx.lineWidth = 2;
+                        fctx.beginPath();
+                        // Línea horizontal central
+                        fctx.moveTo(tx, ty + 24);
+                        fctx.lineTo(tx + tw, ty + 24);
+                        // Línea vertical fila superior
+                        fctx.moveTo(tx + 24, ty);
+                        fctx.lineTo(tx + 24, ty + 24);
+                        // Líneas verticales fila inferior (escalonadas)
+                        fctx.moveTo(tx, ty + 24);
+                        fctx.lineTo(tx, ty + th);
+                        fctx.moveTo(tx + 48, ty + 24);
+                        fctx.lineTo(tx + 48, ty + th);
+                        fctx.stroke();
 
-                    // Bisel / Highlight superior de ladrillos
-                    fctx.fillStyle = '#646872';
-                    fctx.fillRect(tx + 1, ty + 1, 22, 2);
-                    fctx.fillRect(tx + 25, ty + 1, 22, 2);
-                    fctx.fillRect(tx + 1, ty + 25, 46, 2);
+                        // Bisel / Highlight superior de ladrillos
+                        fctx.fillStyle = '#646872';
+                        fctx.fillRect(tx + 1, ty + 1, 22, 2);
+                        fctx.fillRect(tx + 25, ty + 1, 22, 2);
+                        fctx.fillRect(tx + 1, ty + 25, 46, 2);
 
-                    // Sombra inferior de ladrillos
-                    fctx.fillStyle = '#323439';
-                    fctx.fillRect(tx + 1, ty + 22, 22, 2);
-                    fctx.fillRect(tx + 25, ty + 22, 22, 2);
-                    fctx.fillRect(tx + 1, ty + 46, 46, 2);
+                        // Sombra inferior de ladrillos
+                        fctx.fillStyle = '#323439';
+                        fctx.fillRect(tx + 1, ty + 22, 22, 2);
+                        fctx.fillRect(tx + 25, ty + 22, 22, 2);
+                        fctx.fillRect(tx + 1, ty + 46, 46, 2);
 
-                    // Detalles de textura de piedra
-                    fctx.fillStyle = '#3a3c42';
-                    fctx.fillRect(tx + 6, ty + 8, 3, 2);
-                    fctx.fillRect(tx + 34, ty + 14, 2, 3);
-                    fctx.fillRect(tx + 18, ty + 34, 3, 2);
-                } else if (roll < 0.85) {
-                    // TIPO 2: Mossy Cobblestone (Piedra Musgosa de Dungeon)
-                    fctx.fillStyle = '#43464d';
-                    fctx.fillRect(tx, ty, tw, th);
+                        // Detalles de textura de piedra
+                        fctx.fillStyle = '#3a3c42';
+                        fctx.fillRect(tx + 6, ty + 8, 3, 2);
+                        fctx.fillRect(tx + 34, ty + 14, 2, 3);
+                        fctx.fillRect(tx + 18, ty + 34, 3, 2);
+                    } else if (roll < 0.85) {
+                        // TIPO 2: Mossy Cobblestone (Piedra Musgosa de Dungeon)
+                        fctx.fillStyle = '#43464d';
+                        fctx.fillRect(tx, ty, tw, th);
 
-                    fctx.strokeStyle = '#23252a';
-                    fctx.lineWidth = 2;
+                        fctx.strokeStyle = '#23252a';
+                        fctx.lineWidth = 2;
+                        fctx.strokeRect(tx, ty, tw, th);
+
+                        fctx.beginPath();
+                        fctx.moveTo(tx + 14, ty);
+                        fctx.lineTo(tx + 12, ty + 22);
+                        fctx.lineTo(tx + 34, ty + 20);
+                        fctx.lineTo(tx + 36, ty);
+                        fctx.moveTo(tx + 12, ty + 22);
+                        fctx.lineTo(tx, ty + 32);
+                        fctx.moveTo(tx + 34, ty + 20);
+                        fctx.lineTo(tx + 48, ty + 30);
+                        fctx.moveTo(tx + 24, ty + 21);
+                        fctx.lineTo(tx + 22, ty + 48);
+                        fctx.stroke();
+
+                        // Píxeles de musgo verde Minecraft en grietas y esquinas
+                        fctx.fillStyle = '#4a6b3b'; // Verde musgo
+                        fctx.fillRect(tx + 2, ty + 2, 7, 5);
+                        fctx.fillRect(tx + 26, ty + 18, 9, 6);
+                        fctx.fillRect(tx + 36, ty + 36, 8, 6);
+                        fctx.fillRect(tx + 10, ty + 38, 6, 5);
+
+                        fctx.fillStyle = '#38522b'; // Verde musgo oscuro
+                        fctx.fillRect(tx + 4, ty + 4, 4, 3);
+                        fctx.fillRect(tx + 28, ty + 20, 5, 3);
+                        fctx.fillRect(tx + 38, ty + 38, 4, 3);
+
+                        fctx.fillStyle = '#628c48'; // Verde musgo claro
+                        fctx.fillRect(tx + 6, ty + 2, 3, 2);
+                        fctx.fillRect(tx + 32, ty + 19, 3, 2);
+                    } else {
+                        // TIPO 3: Cracked Stone Bricks (Piedra Agrietada)
+                        fctx.fillStyle = '#484b52';
+                        fctx.fillRect(tx, ty, tw, th);
+
+                        fctx.strokeStyle = '#27292e';
+                        fctx.lineWidth = 2;
+                        fctx.beginPath();
+                        fctx.moveTo(tx, ty + 24);
+                        fctx.lineTo(tx + tw, ty + 24);
+                        fctx.moveTo(tx + 24, ty);
+                        fctx.lineTo(tx + 24, ty + 24);
+                        fctx.moveTo(tx + 12, ty + 24);
+                        fctx.lineTo(tx + 12, ty + th);
+                        fctx.moveTo(tx + 36, ty + 24);
+                        fctx.lineTo(tx + 36, ty + th);
+                        fctx.stroke();
+
+                        // Grietas profundas estilo Minecraft
+                        fctx.strokeStyle = '#18191c';
+                        fctx.lineWidth = 2;
+                        fctx.beginPath();
+                        fctx.moveTo(tx + 10, ty + 4);
+                        fctx.lineTo(tx + 18, ty + 14);
+                        fctx.lineTo(tx + 14, ty + 24);
+                        fctx.lineTo(tx + 28, ty + 36);
+                        fctx.lineTo(tx + 24, ty + 44);
+                        fctx.moveTo(tx + 18, ty + 14);
+                        fctx.lineTo(tx + 30, ty + 18);
+                        fctx.lineTo(tx + 38, ty + 10);
+                        fctx.stroke();
+
+                        // Relieve claro junto a la grieta
+                        fctx.fillStyle = '#676b75';
+                        fctx.fillRect(tx + 19, ty + 13, 2, 2);
+                        fctx.fillRect(tx + 29, ty + 35, 2, 2);
+                    }
+
+                    // Borde exterior suave del bloque para marcar la cuadrícula
+                    fctx.strokeStyle = 'rgba(20, 22, 26, 0.45)';
+                    fctx.lineWidth = 1;
                     fctx.strokeRect(tx, ty, tw, th);
-
-                    fctx.beginPath();
-                    fctx.moveTo(tx + 14, ty);
-                    fctx.lineTo(tx + 12, ty + 22);
-                    fctx.lineTo(tx + 34, ty + 20);
-                    fctx.lineTo(tx + 36, ty);
-                    fctx.moveTo(tx + 12, ty + 22);
-                    fctx.lineTo(tx, ty + 32);
-                    fctx.moveTo(tx + 34, ty + 20);
-                    fctx.lineTo(tx + 48, ty + 30);
-                    fctx.moveTo(tx + 24, ty + 21);
-                    fctx.lineTo(tx + 22, ty + 48);
-                    fctx.stroke();
-
-                    // Píxeles de musgo verde Minecraft en grietas y esquinas
-                    fctx.fillStyle = '#4a6b3b'; // Verde musgo
-                    fctx.fillRect(tx + 2, ty + 2, 7, 5);
-                    fctx.fillRect(tx + 26, ty + 18, 9, 6);
-                    fctx.fillRect(tx + 36, ty + 36, 8, 6);
-                    fctx.fillRect(tx + 10, ty + 38, 6, 5);
-
-                    fctx.fillStyle = '#38522b'; // Verde musgo oscuro
-                    fctx.fillRect(tx + 4, ty + 4, 4, 3);
-                    fctx.fillRect(tx + 28, ty + 20, 5, 3);
-                    fctx.fillRect(tx + 38, ty + 38, 4, 3);
-
-                    fctx.fillStyle = '#628c48'; // Verde musgo claro
-                    fctx.fillRect(tx + 6, ty + 2, 3, 2);
-                    fctx.fillRect(tx + 32, ty + 19, 3, 2);
-                } else {
-                    // TIPO 3: Cracked Stone Bricks (Piedra Agrietada)
-                    fctx.fillStyle = '#484b52';
-                    fctx.fillRect(tx, ty, tw, th);
-
-                    fctx.strokeStyle = '#27292e';
-                    fctx.lineWidth = 2;
-                    fctx.beginPath();
-                    fctx.moveTo(tx, ty + 24);
-                    fctx.lineTo(tx + tw, ty + 24);
-                    fctx.moveTo(tx + 24, ty);
-                    fctx.lineTo(tx + 24, ty + 24);
-                    fctx.moveTo(tx + 12, ty + 24);
-                    fctx.lineTo(tx + 12, ty + th);
-                    fctx.moveTo(tx + 36, ty + 24);
-                    fctx.lineTo(tx + 36, ty + th);
-                    fctx.stroke();
-
-                    // Grietas profundas estilo Minecraft
-                    fctx.strokeStyle = '#18191c';
-                    fctx.lineWidth = 2;
-                    fctx.beginPath();
-                    fctx.moveTo(tx + 10, ty + 4);
-                    fctx.lineTo(tx + 18, ty + 14);
-                    fctx.lineTo(tx + 14, ty + 24);
-                    fctx.lineTo(tx + 28, ty + 36);
-                    fctx.lineTo(tx + 24, ty + 44);
-                    fctx.moveTo(tx + 18, ty + 14);
-                    fctx.lineTo(tx + 30, ty + 18);
-                    fctx.lineTo(tx + 38, ty + 10);
-                    fctx.stroke();
-
-                    // Relieve claro junto a la grieta
-                    fctx.fillStyle = '#676b75';
-                    fctx.fillRect(tx + 19, ty + 13, 2, 2);
-                    fctx.fillRect(tx + 29, ty + 35, 2, 2);
                 }
-
-                // Borde exterior suave del bloque para marcar la cuadrícula
-                fctx.strokeStyle = 'rgba(20, 22, 26, 0.45)';
-                fctx.lineWidth = 1;
-                fctx.strokeRect(tx, ty, tw, th);
             }
+        }
+
+        // 4. Viñeta ambiental oscura suave sobre los bordes interiores de la arena
+        if (fctx.createRadialGradient) {
+            const cx = x + w * 0.5;
+            const cy = y + h * 0.5;
+            const vigInner = Math.min(w, h) * 0.25;
+            const vigOuter = Math.hypot(w * 0.5, h * 0.5);
+            const vignette = fctx.createRadialGradient(cx, cy, vigInner, cx, cy, vigOuter);
+            vignette.addColorStop(0, 'rgba(6, 4, 10, 0)');
+            vignette.addColorStop(0.62, 'rgba(6, 4, 10, 0.14)');
+            vignette.addColorStop(1, 'rgba(6, 4, 10, 0.42)');
+            fctx.fillStyle = vignette;
+            fctx.fillRect(x, y, w, h);
         }
 
         fctx.restore();
 
+        // Marco interior nítido #0b0714 para máxima legibilidad de entidades y proyectiles
+        fctx.strokeStyle = '#0b0714';
+        fctx.lineWidth = 3;
+        fctx.strokeRect(x, y, w, h);
+
+        this.floorLevel = this.level;
         this.dungeonFloorCanvas = offCanvas;
     }
 
@@ -3019,6 +3109,21 @@ class Game {
         ctx.fillStyle = '#06040a';
         ctx.fillRect(this.camera.x - 200, this.camera.y - 200, viewW + 400, viewH + 400);
 
+        if (!this.dungeonFloorCanvas || !this.floorUsedV2 || !this.wallUsedV2) {
+            const v2 = this.getV2Registry();
+            if (!this.dungeonFloorCanvas) {
+                this.buildDungeonFloorCanvas();
+            } else if (v2) {
+                const floorImg = this.level === 2 ? v2.floorLvl2 : v2.floorLvl1;
+                const wallImg = v2.wallTile;
+                const floorReady = !!(floorImg && floorImg.complete && floorImg.naturalWidth > 0);
+                const wallReady = !!(wallImg && wallImg.complete && wallImg.naturalWidth > 0);
+                if ((!this.floorUsedV2 && floorReady) || (!this.wallUsedV2 && wallReady)) {
+                    this.buildDungeonFloorCanvas();
+                }
+            }
+        }
+
         if (this.dungeonFloorCanvas) {
             ctx.drawImage(this.dungeonFloorCanvas, 0, 0);
         } else {
@@ -3096,8 +3201,9 @@ class Game {
 
         }
 
-        // 3. Antorchas de Madera en Paredes e Iluminación Radial Cálida
+        // 3. Braseros / Antorchas en Paredes e Iluminación Radial Cálida
         const cam = this.camera;
+        const torchImg = this.getV2Asset('torchBrazier', typeof torchBrazierImg !== 'undefined' ? torchBrazierImg : null);
         for (const t of this.torches) {
             if (t.x < cam.x - 220 || t.x > cam.x + this.width + 220 || t.y < cam.y - 220 || t.y > cam.y + this.height + 220) continue;
             const flicker = Math.sin(this.globalTime * 10 + t.x * 0.1) * 6 + Math.cos(this.globalTime * 18 + t.y * 0.1) * 4;
@@ -3128,26 +3234,42 @@ class Game {
                 ctx.fill();
             }
 
-            // Mango de madera rectangular (#8b5a2b)
-            ctx.fillStyle = '#8b5a2b';
-            ctx.fillRect(t.x - 3, t.y - 2, 6, 14);
-            ctx.fillStyle = '#5c3a1e';
-            ctx.fillRect(t.x + 1, t.y - 2, 2, 14);
-
-            // Carbón superior oscuro
-            ctx.fillStyle = '#262626';
-            ctx.fillRect(t.x - 4, t.y - 6, 8, 4);
-            ctx.fillStyle = '#171717';
-            ctx.fillRect(t.x + 1, t.y - 6, 3, 4);
-
-            // Cubo de fuego pixelado amarillo/naranja con textura
             const fy = Math.sin(this.globalTime * 14 + t.x) * 1.5;
-            ctx.fillStyle = '#ea580c';
-            ctx.fillRect(t.x - 4, t.y - 13 + fy, 8, 8);
-            ctx.fillStyle = '#facc15';
-            ctx.fillRect(t.x - 3, t.y - 12 + fy, 6, 6);
-            ctx.fillStyle = '#ffffff';
-            ctx.fillRect(t.x - 1, t.y - 10 + fy, 3, 3);
+            if (torchImg) {
+                ctx.drawImage(torchImg, t.x - 17, t.y - 23, 34, 34);
+                // Chispa/brillo sutil animado encima del brasero
+                const sparkAlpha = 0.58 + Math.sin(this.globalTime * 16 + t.y) * 0.22;
+                ctx.fillStyle = `rgba(251, 146, 60, ${sparkAlpha * 0.55})`;
+                ctx.beginPath();
+                ctx.arc(t.x, t.y - 16 + fy, 6.5, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = `rgba(253, 224, 71, ${sparkAlpha})`;
+                ctx.beginPath();
+                ctx.arc(t.x, t.y - 16 + fy, 3.2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(t.x - 1, t.y - 17 + fy, 2, 2);
+            } else {
+                // Mango de madera rectangular (#8b5a2b)
+                ctx.fillStyle = '#8b5a2b';
+                ctx.fillRect(t.x - 3, t.y - 2, 6, 14);
+                ctx.fillStyle = '#5c3a1e';
+                ctx.fillRect(t.x + 1, t.y - 2, 2, 14);
+
+                // Carbón superior oscuro
+                ctx.fillStyle = '#262626';
+                ctx.fillRect(t.x - 4, t.y - 6, 8, 4);
+                ctx.fillStyle = '#171717';
+                ctx.fillRect(t.x + 1, t.y - 6, 3, 4);
+
+                // Cubo de fuego pixelado amarillo/naranja con textura
+                ctx.fillStyle = '#ea580c';
+                ctx.fillRect(t.x - 4, t.y - 13 + fy, 8, 8);
+                ctx.fillStyle = '#facc15';
+                ctx.fillRect(t.x - 3, t.y - 12 + fy, 6, 6);
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(t.x - 1, t.y - 10 + fy, 3, 3);
+            }
         }
     }
 
@@ -3350,6 +3472,7 @@ class Game {
         const gy = this.waveGatePos.y;
         const near = this.isNearWaveGate();
         const pulse = 0.72 + Math.sin(this.globalTime * 6) * 0.28;
+        const portalImg = this.getV2Asset('portalDoor', typeof portalDoorImg !== 'undefined' ? portalDoorImg : null);
 
         ctx.save();
         ctx.translate(gx, gy);
@@ -3363,43 +3486,51 @@ class Game {
         ctx.ellipse(0, 12, 74, 34, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Arco de piedra obsidiana de la Puerta de Oleada
-        ctx.fillStyle = '#120a1f';
-        ctx.strokeStyle = near ? '#a855f7' : '#6d28d9';
-        ctx.lineWidth = near ? 3 : 2;
+        // Arco rúnico (sprite v2 limpio o fallback procedural)
         ctx.shadowColor = near ? '#a855f7' : '#6d28d9';
         ctx.shadowBlur = this.lowSpecMode ? 0 : (near ? 14 : 6);
-        ctx.beginPath();
-        ctx.roundRect(-34, -34, 68, 56, [24, 24, 4, 4]);
-        ctx.fill();
-        ctx.stroke();
-        ctx.shadowBlur = 0;
+        if (portalImg) {
+            ctx.drawImage(portalImg, -42, -44, 84, 76);
+            ctx.shadowBlur = 0;
+        } else {
+            ctx.fillStyle = '#120a1f';
+            ctx.strokeStyle = near ? '#a855f7' : '#6d28d9';
+            ctx.lineWidth = near ? 3 : 2;
+            ctx.beginPath();
+            if (ctx.roundRect) ctx.roundRect(-34, -34, 68, 56, [24, 24, 4, 4]);
+            else ctx.rect(-34, -34, 68, 56);
+            ctx.fill();
+            ctx.stroke();
+            ctx.shadowBlur = 0;
 
-        // Portal energético interior morado oscuro
-        const portalGrad = ctx.createLinearGradient(0, -24, 0, 18);
-        portalGrad.addColorStop(0, `rgba(168, 85, 247, ${0.88 * pulse})`);
-        portalGrad.addColorStop(0.55, `rgba(109, 40, 217, ${0.80 * pulse})`);
-        portalGrad.addColorStop(1, 'rgba(18, 10, 31, 0.94)');
-        ctx.fillStyle = portalGrad;
-        ctx.beginPath();
-        ctx.roundRect(-22, -24, 44, 42, [16, 16, 2, 2]);
-        ctx.fill();
+            // Portal energético interior morado oscuro (solo fallback)
+            const portalGrad = ctx.createLinearGradient(0, -24, 0, 18);
+            portalGrad.addColorStop(0, `rgba(168, 85, 247, ${0.88 * pulse})`);
+            portalGrad.addColorStop(0.55, `rgba(109, 40, 217, ${0.80 * pulse})`);
+            portalGrad.addColorStop(1, 'rgba(18, 10, 31, 0.94)');
+            ctx.fillStyle = portalGrad;
+            ctx.beginPath();
+            if (ctx.roundRect) ctx.roundRect(-22, -24, 44, 42, [16, 16, 2, 2]);
+            else ctx.rect(-22, -24, 44, 42);
+            ctx.fill();
 
-        // Símbolo de avance rápido (>>) dentro del portal
-        ctx.fillStyle = '#f3e8ff';
-        ctx.font = 'bold 16px "Courier New", monospace';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('>>', 0, -3);
+            // Símbolo de avance rápido (>>) dentro del portal (solo fallback)
+            ctx.fillStyle = '#f3e8ff';
+            ctx.font = 'bold 16px "Courier New", monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('>>', 0, -3);
+        }
 
         // Etiqueta superior fija
+        const headerY = portalImg ? -50 : -45;
         ctx.font = 'bold 11px "Courier New", monospace';
         ctx.strokeStyle = '#08050d';
         ctx.lineWidth = 3;
         const headerLabel = `PUERTA DE OLEADA (${this.currentWave + 1}/${this.maxWaves})`;
-        ctx.strokeText(headerLabel, 0, -45);
+        ctx.strokeText(headerLabel, 0, headerY);
         ctx.fillStyle = '#e9d5ff';
-        ctx.fillText(headerLabel, 0, -45);
+        ctx.fillText(headerLabel, 0, headerY);
 
         // Prompt interactivo
         const promptText = near
@@ -3419,6 +3550,7 @@ class Game {
         const gy = this.powerupGatePos.y;
         const near = this.isNearPowerupGate();
         const pulse = 0.72 + Math.sin(this.globalTime * 5.5) * 0.28;
+        const portalImg = this.getV2Asset('portalDoor', typeof portalDoorImg !== 'undefined' ? portalDoorImg : null);
 
         ctx.save();
         ctx.translate(gx, gy);
@@ -3433,36 +3565,44 @@ class Game {
         ctx.ellipse(0, 16, 98, 44, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Pilares y arco místico dorado / obsidiana
-        ctx.fillStyle = '#120a1f';
-        ctx.strokeStyle = near ? '#ffd700' : '#9333ea';
-        ctx.lineWidth = near ? 3.5 : 2.5;
+        // Pilares y arco místico (sprite v2 limpio o fallback procedural)
         ctx.shadowColor = near ? '#ffd700' : '#a855f7';
         ctx.shadowBlur = this.lowSpecMode ? 0 : (near ? 14 : 8);
-        ctx.beginPath();
-        ctx.roundRect(-44, -52, 88, 76, [36, 36, 6, 6]);
-        ctx.fill();
-        ctx.stroke();
-        ctx.shadowBlur = 0;
+        if (portalImg) {
+            ctx.drawImage(portalImg, -52, -60, 104, 92);
+            ctx.shadowBlur = 0;
+        } else {
+            ctx.fillStyle = '#120a1f';
+            ctx.strokeStyle = near ? '#ffd700' : '#9333ea';
+            ctx.lineWidth = near ? 3.5 : 2.5;
+            ctx.beginPath();
+            if (ctx.roundRect) ctx.roundRect(-44, -52, 88, 76, [36, 36, 6, 6]);
+            else ctx.rect(-44, -52, 88, 76);
+            ctx.fill();
+            ctx.stroke();
+            ctx.shadowBlur = 0;
 
-        // Núcleo de energía cósmica
-        const portalGrad = ctx.createLinearGradient(0, -40, 0, 20);
-        portalGrad.addColorStop(0, `rgba(251, 191, 36, ${0.9 * pulse})`);
-        portalGrad.addColorStop(0.5, `rgba(168, 85, 247, ${0.88 * pulse})`);
-        portalGrad.addColorStop(1, 'rgba(76, 29, 149, 0.92)');
-        ctx.fillStyle = portalGrad;
-        ctx.beginPath();
-        ctx.roundRect(-30, -38, 60, 58, [26, 26, 4, 4]);
-        ctx.fill();
+            // Núcleo de energía cósmica (solo fallback)
+            const portalGrad = ctx.createLinearGradient(0, -40, 0, 20);
+            portalGrad.addColorStop(0, `rgba(251, 191, 36, ${0.9 * pulse})`);
+            portalGrad.addColorStop(0.5, `rgba(168, 85, 247, ${0.88 * pulse})`);
+            portalGrad.addColorStop(1, 'rgba(76, 29, 149, 0.92)');
+            ctx.fillStyle = portalGrad;
+            ctx.beginPath();
+            if (ctx.roundRect) ctx.roundRect(-30, -38, 60, 58, [26, 26, 4, 4]);
+            else ctx.rect(-30, -38, 60, 58);
+            ctx.fill();
 
-        // Símbolo estelar central
-        ctx.fillStyle = '#f3e8ff';
-        ctx.shadowColor = '#ffd700';
-        ctx.shadowBlur = this.lowSpecMode ? 0 : 14;
-        ctx.font = 'bold 22px "Courier New", monospace';
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText('★', 0, -9);
+            // Símbolo estelar central (solo fallback)
+            ctx.fillStyle = '#f3e8ff';
+            ctx.shadowColor = '#ffd700';
+            ctx.shadowBlur = this.lowSpecMode ? 0 : 14;
+            ctx.font = 'bold 22px "Courier New", monospace';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('★', 0, -9);
+            ctx.shadowBlur = 0;
+        }
 
         // Letrero visible siempre
         ctx.shadowBlur = 0;
@@ -3507,53 +3647,105 @@ class Game {
         ctx.ellipse(0, 26, 78, 36, 0, 0, Math.PI * 2);
         ctx.fill();
 
-        // Postes de madera laterales del puesto
-        ctx.fillStyle = '#5c3a1e';
-        ctx.strokeStyle = '#1e1b18';
-        ctx.lineWidth = 2;
-        ctx.fillRect(-46, -36, 7, 66);
-        ctx.strokeRect(-46, -36, 7, 66);
-        ctx.fillRect(39, -36, 7, 66);
-        ctx.strokeRect(39, -36, 7, 66);
+        const shopImg = this.getV2Asset('potionShop', typeof potionShopImg !== 'undefined' ? potionShopImg : null);
+        if (shopImg) {
+            const shopW = 132;
+            const shopH = Math.round(shopW * (shopImg.naturalHeight / Math.max(1, shopImg.naturalWidth)));
+            const merchantBob = Math.sin(this.globalTime * 3.2) * 1.4;
 
-        // Mercader místico detrás del mostrador
-        ctx.fillStyle = '#311042';
-        ctx.beginPath();
-        ctx.arc(0, -10, 14, Math.PI, 0, false);
-        ctx.lineTo(14, 6);
-        ctx.lineTo(-14, 6);
-        ctx.closePath();
-        ctx.fill();
-        ctx.stroke();
-        // Ojos brillantes del mercader
-        ctx.fillStyle = '#ffd700';
-        ctx.fillRect(-5, -13, 3, 3);
-        ctx.fillRect(2, -13, 3, 3);
+            // Tendero místico asomado dentro del puesto (detrás del mostrador de piedra)
+            ctx.save();
+            ctx.fillStyle = '#1d1135';
+            ctx.strokeStyle = '#0b0714';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.arc(0, -24 + merchantBob, 13, Math.PI, 0, false);
+            ctx.lineTo(15, -4 + merchantBob);
+            ctx.lineTo(-15, -4 + merchantBob);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            // Capucha interior y ojos brillantes dorados
+            ctx.fillStyle = '#0b0714';
+            ctx.beginPath();
+            ctx.arc(0, -22 + merchantBob, 8.5, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#ffd700';
+            ctx.fillRect(-4.5, -24 + merchantBob, 3, 3);
+            ctx.fillRect(1.5, -24 + merchantBob, 3, 3);
+            ctx.restore();
 
-        // Mostrador de madera robusta
-        ctx.fillStyle = '#78350f';
-        ctx.strokeStyle = '#271206';
-        ctx.lineWidth = 2;
-        ctx.fillRect(-50, 4, 100, 26);
-        ctx.strokeRect(-50, 4, 100, 26);
-        ctx.fillStyle = '#92400e';
-        ctx.fillRect(-52, 0, 104, 7);
-        ctx.strokeRect(-52, 0, 104, 7);
+            ctx.save();
+            ctx.shadowColor = nearShop ? '#a855f7' : '#6d28d9';
+            ctx.shadowBlur = this.lowSpecMode ? 0 : (nearShop ? 14 : 6);
+            ctx.drawImage(shopImg, -shopW * 0.5, -shopH * 0.55, shopW, shopH);
+            ctx.restore();
+        } else {
+            // Postes de madera laterales del puesto (fallback)
+            ctx.fillStyle = '#5c3a1e';
+            ctx.strokeStyle = '#1e1b18';
+            ctx.lineWidth = 2;
+            ctx.fillRect(-46, -36, 7, 66);
+            ctx.strokeRect(-46, -36, 7, 66);
+            ctx.fillRect(39, -36, 7, 66);
+            ctx.strokeRect(39, -36, 7, 66);
 
-        // Los 3 frascos/botellas de poción expuestos sobre el mostrador + bolsita de oro
-        drawPotionFlask(ctx, -28, -5, 9.5, '#4ade80', 'heal');
-        drawPotionFlask(ctx, -4, -5, 9.5, '#f97316', 'fury');
-        drawPotionFlask(ctx, 20, -5, 9.5, '#38bdf8', 'speed');
-        drawGoldBagIcon(ctx, 38, -3, 7.5);
+            // Mercader místico detrás del mostrador
+            ctx.fillStyle = '#311042';
+            ctx.beginPath();
+            ctx.arc(0, -10, 14, Math.PI, 0, false);
+            ctx.lineTo(14, 6);
+            ctx.lineTo(-14, 6);
+            ctx.closePath();
+            ctx.fill();
+            ctx.stroke();
+            // Ojos brillantes del mercader
+            ctx.fillStyle = '#ffd700';
+            ctx.fillRect(-5, -13, 3, 3);
+            ctx.fillRect(2, -13, 3, 3);
 
-        // Toldo superior a rayas (púrpura y dorado)
-        const stripes = 5;
-        const awningW = 108;
-        const stripeW = awningW / stripes;
-        for (let i = 0; i < stripes; i++) {
-            ctx.fillStyle = i % 2 === 0 ? '#7e22ce' : '#eab308';
-            ctx.fillRect(-awningW * 0.5 + i * stripeW, -46, stripeW, 14);
-            ctx.strokeRect(-awningW * 0.5 + i * stripeW, -46, stripeW, 14);
+            // Mostrador de madera robusta
+            ctx.fillStyle = '#78350f';
+            ctx.strokeStyle = '#271206';
+            ctx.lineWidth = 2;
+            ctx.fillRect(-50, 4, 100, 26);
+            ctx.strokeRect(-50, 4, 100, 26);
+            ctx.fillStyle = '#92400e';
+            ctx.fillRect(-52, 0, 104, 7);
+            ctx.strokeRect(-52, 0, 104, 7);
+
+            // Toldo superior a rayas (púrpura y dorado)
+            const stripes = 5;
+            const awningW = 108;
+            const stripeW = awningW / stripes;
+            for (let i = 0; i < stripes; i++) {
+                ctx.fillStyle = i % 2 === 0 ? '#7e22ce' : '#eab308';
+                ctx.fillRect(-awningW * 0.5 + i * stripeW, -46, stripeW, 14);
+                ctx.strokeRect(-awningW * 0.5 + i * stripeW, -46, stripeW, 14);
+            }
+        }
+
+        // Los 3 frascos/botellas de poción expuestos sobre la superficie del mostrador + bolsita de oro
+        if (shopImg) {
+            const flaskY = -14;
+            const itemXs = [-20, -5, 10, 25];
+            ctx.save();
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.45)';
+            for (const ix of itemXs) {
+                ctx.beginPath();
+                ctx.ellipse(ix, flaskY + 6.5, 6.5, 2.5, 0, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.restore();
+            drawPotionFlask(ctx, itemXs[0], flaskY, 8.2, '#4ade80', 'heal');
+            drawPotionFlask(ctx, itemXs[1], flaskY, 8.2, '#f97316', 'fury');
+            drawPotionFlask(ctx, itemXs[2], flaskY, 8.2, '#38bdf8', 'speed');
+            drawGoldBagIcon(ctx, itemXs[3], flaskY + 1, 6.8);
+        } else {
+            drawPotionFlask(ctx, -28, -5, 9.5, '#4ade80', 'heal');
+            drawPotionFlask(ctx, -4, -5, 9.5, '#f97316', 'fury');
+            drawPotionFlask(ctx, 20, -5, 9.5, '#38bdf8', 'speed');
+            drawGoldBagIcon(ctx, 38, -3, 7.5);
         }
 
         // Letrero flotante: "TIENDA DE POCIONES"

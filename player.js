@@ -408,6 +408,7 @@ class Player extends Entity {
             // Retroceso visual y físico
             this.kbVx -= Math.cos(this.aimAngle) * 80;
             this.kbVy -= Math.sin(this.aimAngle) * 80;
+            if (!this.hasPowerUp('LOLA_BLASTER')) this.muzzleFlash = 0.045;
             this.triggerSquash(0.84, 1.2);
 
             const speed = 820;
@@ -1210,51 +1211,73 @@ class Player extends Entity {
         ctx.fill();
         ctx.stroke();
 
+        const getWeaponSprite = (key, globalImg) => {
+            if (typeof v2Assets !== 'undefined' && v2Assets) {
+                const candidate = v2Assets[key];
+                if (typeof v2Assets.isReady === 'function') {
+                    if (v2Assets.isReady(key)) return candidate || globalImg || null;
+                } else if (candidate && candidate.complete && candidate.naturalWidth > 0) {
+                    return candidate;
+                }
+            }
+            if (globalImg && globalImg.complete && globalImg.naturalWidth > 0) {
+                return globalImg;
+            }
+            return null;
+        };
+
         if (this.currentWeapon === 'RIFLE') {
             ctx.save();
             ctx.rotate(this.aimAngle);
             if (facingLeft) ctx.scale(1, -1);
             ctx.translate(-this.rifleRecoil * 7, 0);
-            // Culata
-            ctx.fillStyle = '#1f2937';
-            ctx.strokeStyle = '#020617';
-            ctx.lineWidth = 1.2;
-            ctx.fillRect(-14, -3, 12, 7);
-            ctx.strokeRect(-14, -3, 12, 7);
-            // Cuerpo táctico oscuro
-            ctx.fillStyle = '#111827';
-            ctx.fillRect(-2, -4.5, 24, 9);
-            ctx.strokeRect(-2, -4.5, 24, 9);
-            // Cargador
-            ctx.fillStyle = '#334155';
-            ctx.fillRect(7, 4, 6, 11);
-            ctx.strokeRect(7, 4, 6, 11);
-            // Empuñadura
-            ctx.fillStyle = '#0f172a';
-            ctx.fillRect(-1, 4, 4, 8);
-            // Cañón largo
-            ctx.fillStyle = '#1e293b';
-            ctx.fillRect(22, -2, 26, 4);
-            ctx.strokeRect(22, -2, 26, 4);
-            // Punta y mira
-            ctx.fillStyle = '#fbbf24';
-            ctx.fillRect(46, -3, 4, 6);
-            ctx.fillRect(2, -7, 10, 2.5);
+            const rifleSprite = getWeaponSprite('weaponRifle', typeof weaponRifleImg !== 'undefined' ? weaponRifleImg : null);
+            if (rifleSprite) {
+                const rHeight = 46 * 2.0; // 92px: engrosado 2.0x manteniendo largo 82px
+                ctx.drawImage(rifleSprite, -18, -rHeight * 0.5, 82, rHeight);
+            } else {
+                // Culata
+                ctx.fillStyle = '#1f2937';
+                ctx.strokeStyle = '#020617';
+                ctx.lineWidth = 1.2;
+                ctx.fillRect(-14, -3, 12, 7);
+                ctx.strokeRect(-14, -3, 12, 7);
+                // Cuerpo táctico oscuro
+                ctx.fillStyle = '#111827';
+                ctx.fillRect(-2, -4.5, 24, 9);
+                ctx.strokeRect(-2, -4.5, 24, 9);
+                // Cargador
+                ctx.fillStyle = '#334155';
+                ctx.fillRect(7, 4, 6, 11);
+                ctx.strokeRect(7, 4, 6, 11);
+                // Empuñadura
+                ctx.fillStyle = '#0f172a';
+                ctx.fillRect(-1, 4, 4, 8);
+                // Cañón largo
+                ctx.fillStyle = '#1e293b';
+                ctx.fillRect(22, -2, 26, 4);
+                ctx.strokeRect(22, -2, 26, 4);
+                // Punta y mira
+                ctx.fillStyle = '#fbbf24';
+                ctx.fillRect(46, -3, 4, 6);
+                ctx.fillRect(2, -7, 10, 2.5);
+            }
             // Fogonazo
             if (this.muzzleFlash > 0) {
+                const mx = rifleSprite ? 64 : 50;
                 ctx.shadowColor = '#fde047';
                 ctx.shadowBlur = 18;
                 ctx.fillStyle = '#fde047';
                 ctx.beginPath();
-                ctx.moveTo(50, 0);
-                ctx.lineTo(60, -7);
-                ctx.lineTo(68, 0);
-                ctx.lineTo(60, 7);
+                ctx.moveTo(mx, 0);
+                ctx.lineTo(mx + 10, -7);
+                ctx.lineTo(mx + 18, 0);
+                ctx.lineTo(mx + 10, 7);
                 ctx.closePath();
                 ctx.fill();
                 ctx.fillStyle = '#ffffff';
                 ctx.beginPath();
-                ctx.arc(55, 0, 3.5, 0, Math.PI * 2);
+                ctx.arc(mx + 5, 0, 3.5, 0, Math.PI * 2);
                 ctx.fill();
             }
             ctx.restore();
@@ -1327,25 +1350,50 @@ class Player extends Entity {
                 ctx.stroke();
                 ctx.setLineDash([]);
             } else {
-                // Empuñadura
-                ctx.fillStyle = '#3e2723';
-                ctx.fillRect(-2, 1, 6, 9);
-                // Cañón y corredera
-                ctx.fillStyle = '#475569';
-                ctx.strokeStyle = '#1e293b';
-                ctx.lineWidth = 1.3;
-                ctx.fillRect(0, -3.5, 20, 7);
-                ctx.strokeRect(0, -3.5, 20, 7);
-                // Cañón láser/neón
-                ctx.fillStyle = '#00f5d4';
-                ctx.fillRect(20, -2.5, 3.5, 5);
+                const pistolSprite = getWeaponSprite('weaponPistol', typeof weaponPistolImg !== 'undefined' ? weaponPistolImg : null);
+                if (pistolSprite) {
+                    const pRecoil = this.muzzleFlash > 0 ? 4 : 0;
+                    const pHeight = Math.round(36 * 1.65); // ~59px: engrosado 1.65x manteniendo largo 48px
+                    ctx.drawImage(pistolSprite, -8 - pRecoil, -pHeight * 0.5, 48, pHeight);
+                    if (this.muzzleFlash > 0) {
+                        ctx.save();
+                        ctx.shadowColor = '#38bdf8';
+                        ctx.shadowBlur = 14;
+                        ctx.fillStyle = '#fde047';
+                        ctx.beginPath();
+                        ctx.moveTo(39, -4);
+                        ctx.lineTo(47, -9);
+                        ctx.lineTo(53, -4);
+                        ctx.lineTo(47, 1);
+                        ctx.closePath();
+                        ctx.fill();
+                        ctx.fillStyle = '#ffffff';
+                        ctx.beginPath();
+                        ctx.arc(43, -4, 2.5, 0, Math.PI * 2);
+                        ctx.fill();
+                        ctx.restore();
+                    }
+                } else {
+                    // Empuñadura
+                    ctx.fillStyle = '#3e2723';
+                    ctx.fillRect(-2, 1, 6, 9);
+                    // Cañón y corredera
+                    ctx.fillStyle = '#475569';
+                    ctx.strokeStyle = '#1e293b';
+                    ctx.lineWidth = 1.3;
+                    ctx.fillRect(0, -3.5, 20, 7);
+                    ctx.strokeRect(0, -3.5, 20, 7);
+                    // Cañón láser/neón
+                    ctx.fillStyle = '#00f5d4';
+                    ctx.fillRect(20, -2.5, 3.5, 5);
+                }
                 // Mira láser
                 ctx.strokeStyle = 'rgba(56, 189, 248, 0.4)';
                 ctx.lineWidth = 1;
                 ctx.setLineDash([4, 6]);
                 ctx.beginPath();
-                ctx.moveTo(23, 0);
-                ctx.lineTo(130, 0);
+                ctx.moveTo(pistolSprite ? 40 : 23, pistolSprite ? -4 : 0);
+                ctx.lineTo(130, pistolSprite ? -4 : 0);
                 ctx.stroke();
                 ctx.setLineDash([]);
             }
@@ -1364,38 +1412,52 @@ class Player extends Entity {
                 ctx.drawImage(belceswordImg, -4, -18, 66, 36);
                 ctx.restore();
             } else {
-                const bladeLen = this.isAttacking ? this.swordReach - 10 : 54;
+                const swordSprite = getWeaponSprite('weaponSword', typeof weaponSwordImg !== 'undefined' ? weaponSwordImg : null);
+                if (swordSprite) {
+                    ctx.save();
+                    if (facingLeft) ctx.scale(1, -1);
+                    if (this.damageBoostTimer > 0 || this.furyPotionTimer > 0) {
+                        ctx.shadowBlur = 12;
+                        ctx.shadowColor = '#fbbf24';
+                    }
+                    const drawLen = this.isAttacking ? 82 : 76;
+                    const sHeight = Math.round(44 * 1.85); // ~81px: engrosado 1.85x manteniendo largo 76/82px
+                    ctx.drawImage(swordSprite, -10, -sHeight * 0.5, drawLen, sHeight);
+                    ctx.restore();
+                } else {
+                    const bladeLen = this.isAttacking ? this.swordReach - 10 : 54;
 
-                // Empuñadura (madera blocky)
-                ctx.fillStyle = '#8b5a2b';
-                ctx.strokeStyle = '#3e2723';
-                ctx.lineWidth = 1.3;
-                ctx.fillRect(-7, -3, 7, 6);
-                ctx.strokeRect(-7, -3, 7, 6);
+                    // Empuñadura (madera blocky)
+                    ctx.fillStyle = '#8b5a2b';
+                    ctx.strokeStyle = '#3e2723';
+                    ctx.lineWidth = 1.3;
+                    ctx.fillRect(-7, -3, 7, 6);
+                    ctx.strokeRect(-7, -3, 7, 6);
 
-                // Guardia de la espada (oro/acero)
-                ctx.fillStyle = '#fbbf24';
-                ctx.fillRect(0, -8, 5, 16);
-                ctx.strokeRect(0, -8, 5, 16);
+                    // Guardia de la espada (oro/acero)
+                    ctx.fillStyle = '#fbbf24';
+                    ctx.fillRect(0, -8, 5, 16);
+                    ctx.strokeRect(0, -8, 5, 16);
 
-                // Hoja Diamante / Minecraft Style
-                const bladeColor = this.damageBoostTimer > 0 ? '#fde047' : '#00f5d4';
-                ctx.fillStyle = bladeColor;
-                ctx.strokeStyle = '#0284c7';
-                ctx.lineWidth = 1.6;
-                ctx.beginPath();
-                ctx.moveTo(5, -4.5);
-                ctx.lineTo(bladeLen - 9, -4);
-                ctx.lineTo(bladeLen, 0);
-                ctx.lineTo(bladeLen - 9, 4);
-                ctx.lineTo(5, 4.5);
-                ctx.closePath();
-                ctx.fill();
-                ctx.stroke();
+                    // Hoja Diamante / Minecraft Style
+                    const bladeColor = this.damageBoostTimer > 0 ? '#fde047' : '#00f5d4';
+                    ctx.fillStyle = bladeColor;
+                    ctx.strokeStyle = '#0284c7';
+                    ctx.lineWidth = 1.6;
+                    ctx.beginPath();
+                    ctx.moveTo(5, -4.5);
+                    ctx.lineTo(bladeLen - 9, -4);
+                    ctx.lineTo(bladeLen, 0);
+                    ctx.lineTo(bladeLen - 9, 4);
+                    ctx.lineTo(5, 4.5);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.stroke();
 
-                // Núcleo brillante de la hoja
-                ctx.fillStyle = '#ffffff';
-                ctx.fillRect(7, -1, bladeLen - 18, 2);
+                    // Núcleo brillante de la hoja
+                    ctx.fillStyle = '#ffffff';
+                    ctx.fillRect(7, -1, bladeLen - 18, 2);
+                }
             }
 
             ctx.restore();
